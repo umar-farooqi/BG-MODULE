@@ -7,7 +7,7 @@ WITH   REMAINIG_BALANCE AS(
     WHERE
                     AFLD.ORG_ID=:GV_ORG_ID
            AND STATUS='Y'
-           AND  AFLD.ACCOUNT_NO = :P385_ACCOUNT_NO   
+           AND  AFLD.ACCOUNT_NO = :P385_ACCOUNT_NO
      GROUP BY
                 ACCOUNT_NO
 )
