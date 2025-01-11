@@ -1,0 +1,79 @@
+DECLARE
+  v_com_id NUMBER;
+    v_com_idS NUMBER;
+    BEGIN
+    CASE :APEX$ROW_STATUS
+        WHEN 'C' THEN -- Insert operation
+            INSERT INTO AB_FACILITIES_LETTER_DET 
+            (MAST_ID, ACCOUNT_NO, FACILITIES_ID, MATURITY_TYPE, AMOUNT, CASH_MARGIN, ISSUE_DATE, EXP_DATE, SERVICE_CHARGES, BG_SECURITY)
+            VALUES 
+            (:P371_ID, :ACCOUNT_NO, :FACILITIES_ID, :MATURITY_TYPE, :AMOUNT, :CASH_MARGIN, :ISSUE_DATE, :EXP_DATE, :SERVICE_CHARGES, :BG_SECURITY)
+            RETURNING ID INTO :ID;
+
+             SELECT MAX(ID) INTO v_com_id FROM AB_FACILITIES_LETTER_DET;
+            SELECT MAX(ID) INTO v_com_idS FROM AB_FACILITIES_LETTER_DET;
+
+            -- Insert Company Names
+            FOR i IN (
+                SELECT 
+                    TRIM(REGEXP_SUBSTR(:COMPANY_NAME, '[^:]+', 1, LEVEL)) AS V_level_1
+                FROM dual
+                CONNECT BY LEVEL <= REGEXP_COUNT(:COMPANY_NAME, ':') + 1
+            )
+            LOOP
+                IF i.V_level_1 IS NOT NULL THEN
+                    INSERT INTO AB_FACILITIES_LETTER_DET (
+                        IDS,
+                        COMPANY_NAME,
+                        IMAGE_TYPE
+                    ) 
+                    VALUES (
+                        v_com_id,
+                        i.V_level_1,
+                        'FACILITIES COMPANY'
+                    );
+                END IF;
+            END LOOP;
+
+            -- Insert Intitled Companies
+            FOR i IN (
+                SELECT 
+                    TRIM(REGEXP_SUBSTR(:INTITLED_COMPANY, '[^:]+', 1, LEVEL)) AS V_level_1
+                FROM dual
+                CONNECT BY LEVEL <= REGEXP_COUNT(:INTITLED_COMPANY, ':') + 1
+            )
+            LOOP
+                IF i.V_level_1 IS NOT NULL THEN
+                    INSERT INTO AB_FACILITIES_LETTER_DET (
+                        IDS,
+                        INTITLED_COMPANY,
+                        IMAGE_TYPE
+                    ) 
+                    VALUES (
+                        v_com_idS,
+                        i.V_level_1,
+                        'FACILITIES COMPANY INTITLED'
+                    );
+                END IF;
+            END LOOP;
+
+        WHEN 'U' THEN -- Update operation
+            UPDATE AB_FACILITIES_LETTER_DET 
+            SET 
+                  MAST_ID  = :P371_ID,
+                ACCOUNT_NO = :ACCOUNT_NO,
+                FACILITIES_ID = :FACILITIES_ID,
+                MATURITY_TYPE = :MATURITY_TYPE,
+                AMOUNT = :AMOUNT,
+                CASH_MARGIN = :CASH_MARGIN,
+                ISSUE_DATE = :ISSUE_DATE,
+                EXP_DATE = :EXP_DATE,
+                SERVICE_CHARGES = :SERVICE_CHARGES,
+                BG_SECURITY = :BG_SECURITY
+            WHERE ID = :ID;
+
+        WHEN 'D' THEN -- Delete operation
+            DELETE FROM AB_FACILITIES_LETTER_DET 
+            WHERE ID = :ID;
+    END CASE;
+END;
