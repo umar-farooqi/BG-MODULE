@@ -61,7 +61,7 @@ WITH BANK_NAME AS (
 ), INITIAL_DATA AS (
     SELECT 
         Q1.BANK_ID,
-        Q1.REG_NAME AS BANK_NAME, -- Proper bank name alias
+        Q1.REG_NAME AS BANK_NAME, -- Corrected alias for bank name
         Q1.FACILITIES_NAME,
         Q2.MATURITY_TYPE,
         NVL(Q1.AMOUNT, 0) AS AMOUNT_NON,
@@ -76,21 +76,53 @@ WITH BANK_NAME AS (
         AND Q1.FACILITIES_ID = Q2.FACILITIES_ID
     WHERE 
         Q2.MATURITY_TYPE = 'NON FINANCIAL'
+), RECURSIVE_CTE (BANK_ID, BANK_NAME, FACILITIES_NAME, MATURITY_TYPE, AMOUNT_NON, AVAILED_NON, BALANCE_NON, BG_EXPIRE_DATE, RN) AS (
+    -- Base case: first row
+    SELECT 
+        BANK_ID,
+        BANK_NAME, -- Properly reference BANK_NAME here
+        FACILITIES_NAME,
+        MATURITY_TYPE,
+        AMOUNT_NON,
+        AVAILED_NON,
+        (AMOUNT_NON - AVAILED_NON) AS BALANCE_NON,
+        BG_EXPIRE_DATE,
+        RN
+    FROM 
+        INITIAL_DATA
+    WHERE 
+        RN = 1
+
+    UNION ALL
+
+    -- Recursive calculation for subsequent rows
+    SELECT 
+        ID.BANK_ID,
+        ID.BANK_NAME, -- Correctly propagate BANK_NAME
+        ID.FACILITIES_NAME,
+        ID.MATURITY_TYPE,
+        REC.BALANCE_NON AS AMOUNT_NON, -- Use previous BALANCE_NON as current AMOUNT_NON
+        ID.AVAILED_NON,
+        (REC.BALANCE_NON - ID.AVAILED_NON) AS BALANCE_NON,
+        ID.BG_EXPIRE_DATE,
+        ID.RN
+    FROM 
+        RECURSIVE_CTE REC
+    JOIN 
+        INITIAL_DATA ID 
+        ON REC.BANK_ID = ID.BANK_ID
+        AND REC.RN + 1 = ID.RN -- Link current row with the next row
 )
 SELECT 
-    ID.BANK_ID,
-    CASE 
-        WHEN ROW_NUMBER() OVER (PARTITION BY ID.BANK_ID ORDER BY ID.FACILITIES_NAME) = 1 
-        THEN ID.BANK_NAME 
-        ELSE NULL 
-    END AS BANK_NAME, -- Show bank name only once
-    ID.FACILITIES_NAME,
-    ID.MATURITY_TYPE,
-    ID.AMOUNT_NON,
-    ID.AVAILED_NON,
-    (ID.AMOUNT_NON - ID.AVAILED_NON) AS BALANCE_NON,
-    ID.BG_EXPIRE_DATE
+    BANK_ID,
+    BANK_NAME, -- Ensure BANK_NAME is included in final output
+    FACILITIES_NAME,
+    MATURITY_TYPE,
+    AMOUNT_NON,
+    AVAILED_NON,
+    BALANCE_NON,
+    BG_EXPIRE_DATE
 FROM 
-    INITIAL_DATA ID
+    RECURSIVE_CTE
 ORDER BY 
-    ID.BANK_ID, ID.RN DESC;
+    BANK_ID, RN DESC;
