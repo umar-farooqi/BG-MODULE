@@ -1,5 +1,3 @@
-TODAY 
-
 WITH REMAINING_AMOUNT AS (  
     SELECT 
         AFL.ID,
