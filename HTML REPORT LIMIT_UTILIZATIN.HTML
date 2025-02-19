@@ -92,6 +92,7 @@ BEGIN
       <th style="width:6%;background-color:#C2DEA4;">Facilities Name</th>
       <th style="width:4%;background-color:#C2DEA4;">Total Amount</th>
       <th style="width:6%;background-color:#C2DEA4;">Availed</th>
+      <th style="width:6%;background-color:#C2DEA4;">Total Availd</th>
       <th style="width:4%;background-color:#C2DEA4;">Balance</th>
       <th style="width:6%;background-color:#C2DEA4;">Maturity</th>
       <th style="width:4%;background-color:#C2DEA4;">Tomorrow</th>
@@ -104,347 +105,242 @@ DECLARE
   PREV_FACILITIES_NAME VARCHAR2(1000) := NULL;
   PREV_TOTAL_AMOUNT VARCHAR2(1000) := NULL;
   PREV_BALANCE VARCHAR2(1000) := NULL;
+  PREV_AVAILD VARCHAR2(1000) :=NULL;
+  PREV_MATURITY VARCHAR2(1000) :=NULL;
+  PREV_TOMORROW VARCHAR2(1000) :=NULL;
+  PREV_DAY VARCHAR2(1000) :=NULL;
+  PREV_OVER_DUE VARCHAR2(1000) :=NULL;
 BEGIN
   FOR x IN (
-                   WITH BANK_NAME AS (
-    SELECT
-        ASM.SR_ID,
-        AST.REG_NAME
-    FROM
-        AB_SETUP_REGISTRATION ASM
-    JOIN
-        AB_SETUP_REGISTRATION AST
-    ON
-        AST.SR_ID = ASM.SR_IDS 
-        AND AST.REG_TYPE = 'BANK'
-    WHERE 
-        ASM.REG_TYPE = 'BANK LOV'
-        AND ASM.ORG_ID = :GV_ORG_ID
-    ORDER BY
-        ASM.CREATED_ON DESC
-), ACCOUNT_NOO AS (
-    SELECT   
-            ASM.REG_CODE ,
-            AFLDS.ID,
-            AFLD.ID AS IDD
-    FROM 
-            AB_SETUP_REGISTRATION ASM
-      LEFT JOIN AB_FACILITIES_LETTER_DET AFLDS ON  AFLDS.ACCOUNT_NO = ASM.SR_ID 
-      LEFT JOIN AB_FACILITIES_LETTER_DET AFLD ON AFLD.ID = AFLDS.IDS
-      LEFT JOIN AB_FACILITIES_LETTER AFL ON AFL.ID = AFLD.MAST_ID
-   WHERE 
-       AFLDS.IMAGE_TYPE = 'FACILITIES ACCOUNT NUMBER'
-   
-         AND  AFLDS.ORG_ID = :GV_ORG_ID
-),COMPANY_NAME AS (
-      SELECT  ASM.REG_NAME  , AFLDS.COMPANY_NAME, AFLD.ID
-        
-     FROM
-
-     AB_SETUP_REGISTRATION ASM  
-             left join AB_FACILITIES_LETTER_DET AFLDS ON  AFLDS.COMPANY_NAME = ASM.SR_ID  AND ASM.REG_TYPE = 'COMPANY'
-     LEFT  JOIN AB_FACILITIES_LETTER_DET AFLD ON AFLDS.IDS = AFLD.ID
-     LEFT JOIN AB_FACILITIES_LETTER AFL ON AFL.ID = AFLD.MAST_ID
-
-   WHERE 
-       AFLDS.IMAGE_TYPE = 'FACILITIES COMPANY'
-
-         AND  AFLDS.ORG_ID = :GV_ORG_ID
-)
-,QUERY1 AS (
-    SELECT 
-                    AFLD.ID,
-                    AFL.BANK_ID,
-                    AFLD.FACILITIES_ID,
-                    BN.REG_NAME,
-                    MAX(CASE WHEN ALD.DET_ID = AFLD.FACILITIES_ID AND ALD.LOOKUP_ID = '032' THEN ALD.LOOKUP_DET_NAME ELSE NULL END) AS FACILITIES_NAME,
-                    SUM(NVL(AFLD.AMOUNT, 0)) AS AMOUNT 
-    FROM 
-                      AB_FACILITIES_LETTER AFL
-    LEFT JOIN  AB_FACILITIES_LETTER_DET AFLD  ON AFLD.MAST_ID = AFL.ID
-    LEFT JOIN  AB_LOOKUP_DETAIL ALD ON ALD.DET_ID = AFLD.FACILITIES_ID
-    LEFT JOIN  BANK_NAME BN ON  BN.SR_ID = AFL.BANK_ID
-    WHERE 
-        AFL.FACILITIES_TYPE = 'FACILITIES MAST'
-        AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-        AFL.BANK_ID, AFLD.FACILITIES_ID, BN.REG_NAME, AFLD.ID
-),
-QUERY2 AS (
-    SELECT
-        AFLD.ID,
-        AFL.BANK_ID,
-        AFL.FACILITIES_ID,
-        AFL.MATURITY_TYPE,
-        ( NVL(SUM(AFL.AMOUNT), 0)) AS AVAILED, -- Handle duplicates
-        MAX(AFL.BG_EXPIRE_DATE) AS BG_EXPIRE_DATE,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS MATURITY,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 1) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS TOMORROW,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) <= TRUNC(SYSDATE - 2) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS DAY_AFTER_TOMORROW,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS OVER_DUE
-    FROM 
-        AB_FACILITIES_LETTER AFL
-    LEFT JOIN 
-        AB_FACILITIES_LETTER_DET AFLD 
-    ON 
-        AFLD.MAST_ID = AFL.ID
-    WHERE 
-        AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
-        AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-        AFL.BANK_ID, AFL.FACILITIES_ID, AFL.MATURITY_TYPE, AFLD.ID 
-)
-,BANK_AMOUNT AS(
+                  WITH BANK_NAME as (
    SELECT 
-                ACCOUNT_NO,
-                AFL.BANK_ID,
-                NVL(SUM(AFL.AMOUNT), 0) AS AMOUNT
-    FROM 
-                      AB_FACILITIES_LETTER AFL
+           AST.REG_NAME, 
+           ASM.SR_IDS 
+     
+     FROM 
+           AB_SETUP_REGISTRATION ASM
+     JOIN  AB_SETUP_REGISTRATION AST ON AST.SR_ID=ASM.SR_IDS AND AST.REG_TYPE='BANK'
     WHERE 
-                     AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
-            AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-                ACCOUNT_NO,
-                AFL.BANK_ID
+           ASM.REG_TYPE='BANK LOV'
+      AND  ASM.ORG_ID = :GV_ORG_ID
+ GROUP BY
+          AST.REG_NAME , 
+          ASM.SR_IDS
+)
+,FOL_DETAIL AS(
+   SELECT 
+          BN.REG_NAME BANK_NAME ,  
+          AFLD.ID FOLD_ID,
+          ALD.LOOKUP_DET_NAME FACILITIES_NAME,
+          AFLD.AMOUNT FOL_AMT,
+          AFA.ID ACCOUNT_ID,
+          ASB.REG_CODE ACCOUNT_NAME,
+          ASCM.REG_NAME COMPANY_NAME
+     FROM 
+          AB_FACILITIES_LETTER AFL
+LEFT JOIN AB_FACILITIES_LETTER_DET AFLD ON AFLD.MAST_ID = AFL.ID
+LEFT JOIN AB_FACILITIES_LETTER_DET AFLDS ON AFLDS.IDS = AFLD.ID
+LEFT JOIN BANK_NAME BN ON BN.SR_IDS  = AFL.BANK_ID
+LEFT JOIN AB_LOOKUP_DETAIL ALD ON ALD.DET_ID=AFLD.FACILITIES_ID AND LOOKUP_ID = '032'
+LEFT JOIN AB_FACILITIES_LETTER_DET AFA ON AFA.IDS=AFLD.ID AND AFA.IMAGE_TYPE='FACILITIES ACCOUNT NUMBER'
+LEFT JOIN AB_SETUP_REGISTRATION ASB ON ASB.SR_ID=AFA.ACCOUNT_NO AND ASB.REG_TYPE='BANK LOV'
+LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_TYPE='COMPANY'
+    WHERE 
+          AFL.FACILITIES_TYPE = 'FACILITIES MAST'
+      AND AFL.ORG_ID = :GV_ORG_ID
+ GROUP BY
+          BN.REG_NAME,  
+          AFLD.ID,
+          ALD.LOOKUP_DET_NAME,
+          AFLD.AMOUNT,
+          AFA.ID,
+          ASB.REG_CODE,
+          ASCM.REG_NAME
+)
+,FUND_REQ_DETAIL AS (
+  SELECT 
+         IDS,
+         SUM(BALANCE) REQ_AMT
+    FROM
+         AB_PO_DEMAND_REQ_DET
+   WHERE 
+         ORG_ID=:GV_ORG_ID
+     AND DET_STATUS='CREATED'
+     AND STATUS='Y'
+GROUP BY
+       IDS
 )
 ,LIMIT_UTILIZATION AS(
-SELECT
-    Q1.BANK_ID AS BANK_ID, 
-    
-    Q1.REG_NAME AS BANK_NAME,
-  CN.REG_NAME AS COMPANY_NAME,
-  ACC.REG_CODE AS ACCOUNT_NO,
-    Q1.FACILITIES_NAME AS FACILITIES_NAME,
-    SUM(Q1.AMOUNT)AS TOTAL_AMOUNT,
-     MAX(Q2.AVAILED) AS AVAILED,
-      SUM(Q1.AMOUNT) - Q2.AVAILED AS BALANCE, 
-    SUM(Q2.MATURITY) AS MATURITY,
-    SUM(Q2.TOMORROW) AS TOMORROW,
-    SUM(Q2.DAY_AFTER_TOMORROW) AS DAY_AFTER_TOMORROW,
-    SUM(Q2.OVER_DUE) AS OVER_DUE,
-    Q1.FACILITIES_ID,
-    ACC.ID
-FROM 
-    QUERY1 Q1
-LEFT JOIN 
-    QUERY2 Q2 
-ON 
-    Q1.BANK_ID = Q2.BANK_ID
-     AND Q1.FACILITIES_ID = Q2.FACILITIES_ID
-    LEFT JOIN ACCOUNT_NOO ACC ON ACC.IDD = Q1.ID
-    LEFT JOIN COMPANY_NAME CN ON CN.ID = Q1.ID
-WHERE 
-    Q2.MATURITY_TYPE = 'FINANCIAL'
-GROUP BY 
-    Q1.BANK_ID, 
-    Q1.REG_NAME,
-   Q2.AVAILED,
-  CN.REG_NAME,
-  ACC.REG_CODE,
-    Q1.FACILITIES_NAME,
-    Q1.FACILITIES_ID,
-    ACC.ID
-)
-,FACILITIES_NAME AS(
-SELECT
-               BANK_ID,
-                FACILITIES_NAME,
-                FACILITIES_ID,
-                SUM( DISTINCT NVL(TOTAL_AMOUNT,0)) TOTAL_AMOUNT
-    FROM(
-    SELECT
-    Q1.BANK_ID AS BANK_ID, 
-    Q1.REG_NAME AS BANK_NAME,
-  CN.REG_NAME AS COMPANY_NAME,
-  ACC.REG_CODE AS ACCOUNT_NO,
-   Q1.FACILITIES_ID,
-    Q1.FACILITIES_NAME AS FACILITIES_NAME,
-    SUM( Q1.AMOUNT)AS TOTAL_AMOUNT,
-     MAX(Q2.AVAILED) AS AVAILED,
-      SUM(Q1.AMOUNT) - Q2.AVAILED AS BALANCE, 
-    SUM(Q2.MATURITY) AS MATURITY,
-    SUM(Q2.TOMORROW) AS TOMORROW,
-    SUM(Q2.DAY_AFTER_TOMORROW) AS DAY_AFTER_TOMORROW,
-    SUM(Q2.OVER_DUE) AS OVER_DUE
-FROM 
-    QUERY1 Q1
-LEFT JOIN 
-    QUERY2 Q2 
-ON 
-    Q1.BANK_ID = Q2.BANK_ID
-     AND Q1.FACILITIES_ID = Q2.FACILITIES_ID
-    LEFT JOIN ACCOUNT_NOO ACC ON ACC.IDD = Q1.ID
-    LEFT JOIN COMPANY_NAME CN ON CN.ID = Q1.ID
-WHERE 
-    Q2.MATURITY_TYPE = 'FINANCIAL'
-GROUP BY 
-    Q1.BANK_ID, 
-    Q1.REG_NAME,
-   Q2.AVAILED,
-  CN.REG_NAME,
-  ACC.REG_CODE,
-    Q1.FACILITIES_NAME,
-    Q1.FACILITIES_ID)
-  GROUP BY
-            BANK_ID,
-            FACILITIES_NAME,
-            FACILITIES_ID
- ),
-LIMIT_AMOUNT AS( SELECT 
-                ACCOUNT_NO,
-                AFL.BANK_ID,
-                NVL(SUM(AFL.AMOUNT), 0) AS AMOUNT
-    FROM 
-                      AB_FACILITIES_LETTER AFL
+  SELECT   
+          AFL.ID,
+          AFL.FACILITIES_ID,
+          AFL.ACCOUNT_NO,
+          AFL.FACILITIES_TYPE,
+          AFL.STATUS,
+          AFL.SUPPLIER_ID,
+          MAX(CASE    WHEN ASR.SR_ID = AFL.SUPPLIER_ID AND ASR.REG_TYPE = 'VENDOR'   THEN ASR.PARTY_NAME         ELSE NULL       END) AS Supplier_Name,
+          AFL.BG_TYPE,
+          AFL.AMOUNT,
+          AFL.BG_ISSU_DATE,
+          AFL.BG_EXPIRE_DATE,
+          AFL.BG_NUMBER,
+          AFL.AGENCY_ID,
+          MAX(CASE WHEN ASR.SR_ID = AFL.AGENCY_ID AND ASR.REG_TYPE = 'AGENCY'   THEN ASR.REG_NAME  ELSE NULL     END) AS Agency_Name,
+          AFL.ORDER_PURPOSE,
+          MAX(CASE   WHEN ALD.DET_ID = AFL.ORDER_PURPOSE   THEN ALD.LOOKUP_DET_NAME    ELSE NULL    END) AS PURPOSE,
+          AFL.BG_CATEGORY_ID,
+          MAX(CASE     WHEN ALD.DET_ID = AFL.BG_CATEGORY_ID THEN ALD.LOOKUP_DET_NAME     ELSE NULL   END) AS CATEGORY,
+          CASE    WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT) ELSE NULL END AS MATURITY, 
+          CASE     WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 1) THEN TO_CHAR(AFL.AMOUNT)  ELSE NULL   END AS TOMORROW,
+          CASE 
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) < TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
+          ELSE NULL
+          END AS DAY_AFTER_TOMORROW, 
+          CASE 
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT)
+          ELSE NULL
+          END AS OVER_DUE,         
+          'ATTACMENT' AS ATTACHMENT,
+          AFL.MATURITY_TYPE,
+          CASE WHEN AFL.MATURITY_TYPE='FINANCIAL' AND 
+          TRUNC(AFL.BG_EXPIRE_DATE)=TRUNC(SYSDATE) AND AFL.AMOUNT-NVL(FRD.REQ_AMT,0) > 0 THEN 'FUNDS REQUISITION' ELSE NULL END AS FUNDS_REQUISITION,
+          INITCAP(AFL.CREATED_BY) || ' (' || TO_CHAR(AFL.CREATED_ON, 'DD-MON-YYYY HH:MIPM') || ')' AS CREATED_BY
+     FROM AB_FACILITIES_LETTER AFL  
+LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID) 
+LEFT JOIN AB_LOOKUP_DETAIL ALD ON ALD.DET_ID IN (AFL.BG_CATEGORY_ID, AFL.ORDER_PURPOSE, AFL.BG_NATURE, AFL.FACILITIES_ID) 
+LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
     WHERE 
-                     AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
-            AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-                ACCOUNT_NO,
-                AFL.BANK_ID
- )
- ,FINAL_SUM AS(
-    SELECT
-             LU.BANK_ID,
-             LU.BANK_NAME,
-             COMPANY_NAME,
-             LU.ACCOUNT_NO,
-             LU.FACILITIES_NAME,
-             FN.TOTAL_AMOUNT,
-             LA.AMOUNT AVAILED,
-             0 BALANCE,
-             LU.MATURITY,
+          AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
+      AND AFL.MATURITY_TYPE = 'FINANCIAL'
+      AND AFL.ORG_ID = NVL(:GV_ORG_ID,AFL.ORG_ID)
+ GROUP BY AFL.ID,
+          AFL.FACILITIES_TYPE,
+          AFL.ACCOUNT_NO,
+          AFL.STATUS,
+          AFL.BG_NUMBER,
+          AFL.SUPPLIER_ID,
+          AFL.BG_TYPE,
+          AFL.FACILITIES_ID,
+          AFL.AMOUNT,
+          AFL.MATURITY_TYPE,
+          AFL.BG_ISSU_DATE,
+          AFL.BG_EXPIRE_DATE,
+          AFL.AGENCY_ID,
+          AFL.ORDER_PURPOSE,
+          AFL.BG_CATEGORY_ID,
+          AFL.CREATED_ON,
+          AFL.CREATED_BY,
+          AFL.MATURITY,
+          AFL.TOMORROW,
+          AFL.DAY_AFTER_TOMORROW,
+          AFL.OVER_DUE,
+          NVL(FRD.REQ_AMT,0)
+)
+,TOTAL_AVAILED_AMOUNT AS(
+  SELECT   
+          AFL.FACILITIES_ID,
+          SUM(AFL.AMOUNT) TOTAL_AVA_AMT
+     FROM AB_FACILITIES_LETTER AFL  
+LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID)
+--LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
+    WHERE 
+          AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
+      AND AFL.MATURITY_TYPE = 'FINANCIAL'
+      AND AFL.ORG_ID = NVL(:GV_ORG_ID,AFL.ORG_ID)
+ GROUP BY 
+          AFL.FACILITIES_ID
+)
+  SELECT 
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME) AS BANK_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME) AS FACILITIES_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT) AS AMOUNT_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS AVAILD_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS BALANCE_ROWSPAN,
+   
+            FD.BANK_NAME,
+            FD.COMPANY_NAME,
+            FD.ACCOUNT_NAME ACCOUNT_NO,
+            FD.FACILITIES_NAME,
+            SUM( FD.FOL_AMT) TOTAL_AMOUNT,
+            SUM(LU.AMOUNT) AVAILED,
+            SUM( AVL.TOTAL_AVA_AMT) TOTAL_AVAILED,          
+            SUM(FD.FOL_AMT) - SUM(AVL.TOTAL_AVA_AMT) BALANCE,
+            SUM(LU.MATURITY) AS MATURITY,
+            SUM(LU.TOMORROW) AS TOMORROW,
+            SUM(LU.DAY_AFTER_TOMORROW) AS DAT,
+            SUM(LU.OVER_DUE) AS OVER_DUE
+        FROM LIMIT_UTILIZATION LU
+        JOIN FOL_DETAIL FD ON FD.FOLD_ID = LU.FACILITIES_ID AND FD.ACCOUNT_ID = LU.ACCOUNT_NO
+        JOIN TOTAL_AVAILED_AMOUNT AVL ON AVL.FACILITIES_ID = LU.FACILITIES_ID
+        GROUP BY 
+            FD.BANK_NAME,
+            FD.COMPANY_NAME,
+            FD.ACCOUNT_NAME,
+            FD.FACILITIES_NAME,
+            FD.FOL_AMT,
+            AVL.TOTAL_AVA_AMT,
+            LU.MATURITY,
             LU.TOMORROW,
             LU.DAY_AFTER_TOMORROW,
-            LU.OVER_DUE,
-            LU.FACILITIES_ID
-    FROM
-                      LIMIT_UTILIZATION LU 
-    LEFT JOIN  FACILITIES_NAME FN ON FN.BANK_ID=LU.BANK_ID
-             AND FN.FACILITIES_ID=LU.FACILITIES_ID
-    LEFT JOIN LIMIT_AMOUNT  LA ON LA.BANK_ID=LU.BANK_ID
-             AND  LA.ACCOUNT_NO=LU.ID
-)
-,BALANCE_AMOUNT AS(SELECT
-           BANK_ID ,
-            SUM(DISTINCT NVL(TOTAL_AMOUNT, 0)) - SUM(DISTINCT NVL(AVAILED, 0)) AS BALANCE,
-       --  SUM( NVL(AVAILED,0)) BALANCE,
-          FACILITIES_ID
-    FROM
-           FINAL_SUM FS
-        GROUP BY
-          BANK_ID ,
-          FACILITIES_ID
-           )
-    SELECT
-             LU.BANK_ID,
-             LU.BANK_NAME,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME) AS BANK_ROWSPAN,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME, FACILITIES_NAME) AS  FACILITIES_ROWSPAN,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME, FACILITIES_NAME , TOTAL_AMOUNT) AS AMOUNT_ROWSPAN,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME, FACILITIES_NAME , TOTAL_AMOUNT,BA.BALANCE) AS BALANCE_ROWSPAN,
-             TOTAL_AMOUNT,
-             COMPANY_NAME,
-             ACCOUNT_NO,
-             FACILITIES_NAME,
-          
-             AVAILED,
-           BA.BALANCE,
-         
-             LU.MATURITY,
-             LU.TOMORROW,
-             LU.DAY_AFTER_TOMORROW,
-             LU.OVER_DUE,
-             LU.FACILITIES_ID
-    FROM
-                        FINAL_SUM LU 
-     LEFT JOIN  BALANCE_AMOUNT BA ON BA.FACILITIES_ID=LU.FACILITIES_ID
- ) LOOP
-    
-    htp.p('<tr>');
-    
-    IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
-      htp.p('<td rowspan="'||x.BANK_ROWSPAN||'">'||htf.escape_sc(x.BANK_NAME)||'</td>');
-    END IF;
-        htp.p('<td>'||NVL(htf.escape_sc(x.COMPANY_NAME), '0')||'</td>');
-    htp.p('<td>'||NVL(htf.escape_sc(x.ACCOUNT_NO), '0')||'</td>');
+            LU.OVER_DUE
+    ) 
+    LOOP
+        htp.p('<tr>');
 
+        -- BANK_NAME rowspan logic
+        IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
+            htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        END IF;
 
-     IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
-      htp.p('<td rowspan="'||x.FACILITIES_ROWSPAN||'">'||htf.escape_sc(x.FACILITIES_NAME)||'</td>');
-    END IF;
-    
-    
-     IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
-      htp.p('<td rowspan="'||x.AMOUNT_ROWSPAN||'">'||htf.escape_sc(x.TOTAL_AMOUNT)||'</td>');
-    END IF;
-    
-    htp.p('<td>'||NVL(htf.escape_sc(x.AVAILED), '0')||'</td>');
-      IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
-      htp.p('<td rowspan="'||x.BALANCE_ROWSPAN||'">'||htf.escape_sc(x.BALANCE)||'</td>');
-    END IF;
-   
-    htp.p('<td>'||NVL(htf.escape_sc(x.MATURITY), '0')||'</td>');
-    htp.p('<td>'||NVL(htf.escape_sc(x.TOMORROW), '0')||'</td>');
-    htp.p('<td>'||NVL(htf.escape_sc(x.DAY_AFTER_TOMORROW), '0')||'</td>');
-    htp.p('<td>'||NVL(htf.escape_sc(x.OVER_DUE), '0')||'</td>');
-    htp.p('</tr>');
-    
-    PREV_BANK_NAME := x.BANK_NAME;
-    PREV_FACILITIES_NAME := x.FACILITIES_NAME;
-    PREV_TOTAL_AMOUNT := x.TOTAL_AMOUNT;
-    PREV_BALANCE := x.BALANCE;
-  END LOOP;  
-END;
+        htp.p('<td>' || NVL(htf.escape_sc(x.COMPANY_NAME), '0') || '</td>');
+        htp.p('<td>' || NVL(htf.escape_sc(x.ACCOUNT_NO), '0') || '</td>');
+
+        -- FACILITIES_NAME rowspan logic
+        IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+            htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+        END IF;
+
+        -- TOTAL_AMOUNT rowspan logic
+        IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
+            htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
+        END IF;
+
+        -- AVAILED
+        htp.p('<td>' || NVL(htf.escape_sc(x.AVAILED), '0') || '</td>');
+
+        -- TOTAL_AVAILED rowspan logic
+        IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
+            htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
+        END IF;
+
+        -- BALANCE rowspan logic
+        IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
+            htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
+        END IF;
+  htp.p('<td>' || NVL(htf.escape_sc(x.MATURITY), '0') || '</td>');
+    htp.p('<td>' || NVL(htf.escape_sc(x.TOMORROW), '0') || '</td>');
+      htp.p('<td>' || NVL(htf.escape_sc(x.DAT), '0') || '</td>');
+        htp.p('<td>' || NVL(htf.escape_sc(x.OVER_DUE), '0') || '</td>');
+     
+     
+        htp.p('</tr>');
+
+        -- UPDATE PREVIOUS VARIABLES AFTER PRINTING ROW
+        PREV_BANK_NAME := x.BANK_NAME;
+        PREV_FACILITIES_NAME := x.FACILITIES_NAME;
+        PREV_TOTAL_AMOUNT := x.TOTAL_AMOUNT;
+        PREV_BALANCE := x.BALANCE;
+        PREV_AVAILD := x.TOTAL_AVAILED;
   
+    END LOOP;  
+END;
+htp.p('</table>');
 
-htp.p('</body>');htp.p('</html>');END;
 
-
----------------------------------------
-BEGIN
-    htp.p('<!DOCTYPE html>');
-    htp.p('<html>
-<head>
-<style>
-    .page { margin: 0 auto;width: 100%;padding: 0; /* Ensure no padding around the page */}  
-    @page { margin: 10mm;}
-    @media print { table { page-break-after:auto; } tr { page-break-inside:avoid; page-break-after:auto; }td { page-break-inside:avoid; page-break-after:auto; }thead { display:table-header-group; }tfoot { display:table-footer-group; }}
-    #left { width: 15%;float: left;padding: 0; /* Remove padding */margin-left: 0; /* Remove margin to align to left */}
-    #right { width: 85%; /* Adjust width to accommodate more space for the right side */float: left; /* Ensures both left and right align side by side */text-align: center;padding: 0; /* Remove padding */margin-right: 0; /* Remove margin */}
-    p { text-align: center;font-size: 12px; /* Reduced font size */margin: 4px 0;}
-    table { width: 100%; /* Full width for each table */margin: 0; /* Removed margin to reduce the gap */border-collapse: collapse;}         
-    tr { page-break-inside: avoid;page-break-after: auto;height: 20px; /* Sets a fixed height for rows */}
-    th, td { border: 1px solid #D0F0C0;text-align: center;font-size: 8px; /* Decreased font size */height: 40px; /* Fixed row height */overflow: hidden; /* Ensures content doesnt overflow */word-wrap: break-word; /* Break long words to fit in the cell */}
-    th { text-align: center;font-size: 8px;padding-top: 0.1em;padding-bottom: 0.1em;width: 100%; /* Ensure equal width for all headers */}
-    th { word-wrap: break-word;overflow: hidden;}
-    .flex-container { display: flex;/* justify-content: space-between;*/align-items: flex-start; /* Prevent stretching */gap: 0px; /* Space between tables */flex-wrap: wrap;}
-    #t1, #t2, #t4, #t5 { width: 24.9%; /* Each table takes up 19.9% of the available space */margin: 0; /* Remove bottom margin to eliminate extra space */padding: 0; /* Eliminate padding */}
-    #t1, #t2, #t4, #t5 {margin-bottom: 8px; /* Add some space between rows of tables if needed */}
-    .header { padding: 1px 1px; /* Equalize padding for all headers */background-color:#7AAE43; color:white;font-size: 10px;}
-    #t3 { width: 100%;background-color:#689D3A; color:white;margin-bottom: 2px; /* Add some space between rows of tables if needed */width: 99.5%;}
-    #t7 { width: 99.5%;background-color: #D0F0C0;margin-bottom: 0px;border-collapse: collapse; /* Ensures no extra space between borders */}
-    #t7 td { padding: 1px 1px; /* Minimized padding */line-height: 0; /* Reduces the height of the text line */font-size: 12px; /* Optional: Reduce font size to further minimize height */}
-    #t9{ width: 99.5%;margin-bottom: 0px;} #t9 td {word-wrap: break-word;}
-    #t10{ width: 99.5%;margin-bottom: 0px;} #t9 td {word-wrap: break-word;}
-  </style>
-</head>');
-    htp.p('<body>');
+-- ---------------------------------------
    
-   htp.p('<table id="t9" >');
+htp.p('<table id="t10" >');
    htp.p('<tr> <th colspan="13" class="header">Non Financial</th> </tr>');
    htp.p('<tr>
       <th style="width:4%;background-color:#C2DEA4;">Bank Name</th>
@@ -453,6 +349,7 @@ BEGIN
       <th style="width:6%;background-color:#C2DEA4;">Facilities Name</th>
       <th style="width:4%;background-color:#C2DEA4;">Total Amount</th>
       <th style="width:6%;background-color:#C2DEA4;">Availed</th>
+      <th style="width:6%;background-color:#C2DEA4;">Total Availd</th>
       <th style="width:4%;background-color:#C2DEA4;">Balance</th>
       
  </tr>');
@@ -461,311 +358,257 @@ DECLARE
   PREV_FACILITIES_NAME VARCHAR2(1000) := NULL;
   PREV_TOTAL_AMOUNT VARCHAR2(1000) := NULL;
   PREV_BALANCE VARCHAR2(1000) := NULL;
+  PREV_AVAILD VARCHAR2(1000) :=NULL;
+  PREV_MATURITY VARCHAR2(1000) :=NULL;
+  PREV_TOMORROW VARCHAR2(1000) :=NULL;
+  PREV_DAY VARCHAR2(1000) :=NULL;
+  PREV_OVER_DUE VARCHAR2(1000) :=NULL;
 BEGIN
   FOR x IN (
-      WITH BANK_NAME AS (
-    SELECT
-        ASM.SR_ID,
-        AST.REG_NAME
-    FROM
-        AB_SETUP_REGISTRATION ASM
-    JOIN
-        AB_SETUP_REGISTRATION AST
-    ON
-        AST.SR_ID = ASM.SR_IDS 
-        AND AST.REG_TYPE = 'BANK'
-    WHERE 
-        ASM.REG_TYPE = 'BANK LOV'
-        AND ASM.ORG_ID = :GV_ORG_ID
-    ORDER BY
-        ASM.CREATED_ON DESC
-), ACCOUNT_NOO AS (
-    SELECT   
-            ASM.REG_CODE ,
-            AFLDS.ID,
-            AFLD.ID AS IDD
-    FROM 
-            AB_SETUP_REGISTRATION ASM
-      LEFT JOIN AB_FACILITIES_LETTER_DET AFLDS ON  AFLDS.ACCOUNT_NO = ASM.SR_ID 
-      LEFT JOIN AB_FACILITIES_LETTER_DET AFLD ON AFLD.ID = AFLDS.IDS
-      LEFT JOIN AB_FACILITIES_LETTER AFL ON AFL.ID = AFLD.MAST_ID
-   WHERE 
-       AFLDS.IMAGE_TYPE = 'FACILITIES ACCOUNT NUMBER'
-   
-         AND  AFLDS.ORG_ID = :GV_ORG_ID
-),COMPANY_NAME AS (
-      SELECT  ASM.REG_NAME  , AFLDS.COMPANY_NAME, AFLD.ID
-        
-     FROM
-
-     AB_SETUP_REGISTRATION ASM  
-             left join AB_FACILITIES_LETTER_DET AFLDS ON  AFLDS.COMPANY_NAME = ASM.SR_ID  AND ASM.REG_TYPE = 'COMPANY'
-     LEFT  JOIN AB_FACILITIES_LETTER_DET AFLD ON AFLDS.IDS = AFLD.ID
-     LEFT JOIN AB_FACILITIES_LETTER AFL ON AFL.ID = AFLD.MAST_ID
-
-   WHERE 
-       AFLDS.IMAGE_TYPE = 'FACILITIES COMPANY'
-
-         AND  AFLDS.ORG_ID = :GV_ORG_ID
-)
-,QUERY1 AS (
-    SELECT 
-                    AFLD.ID,
-                    AFL.BANK_ID,
-                    AFLD.FACILITIES_ID,
-                    BN.REG_NAME,
-                    MAX(CASE WHEN ALD.DET_ID = AFLD.FACILITIES_ID AND ALD.LOOKUP_ID = '032' THEN ALD.LOOKUP_DET_NAME ELSE NULL END) AS FACILITIES_NAME,
-                    SUM(NVL(AFLD.AMOUNT, 0)) AS AMOUNT 
-    FROM 
-                      AB_FACILITIES_LETTER AFL
-    LEFT JOIN  AB_FACILITIES_LETTER_DET AFLD  ON AFLD.MAST_ID = AFL.ID
-    LEFT JOIN  AB_LOOKUP_DETAIL ALD ON ALD.DET_ID = AFLD.FACILITIES_ID
-    LEFT JOIN  BANK_NAME BN ON  BN.SR_ID = AFL.BANK_ID
-    WHERE 
-        AFL.FACILITIES_TYPE = 'FACILITIES MAST'
-        AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-        AFL.BANK_ID, AFLD.FACILITIES_ID, BN.REG_NAME, AFLD.ID
-),
-QUERY2 AS (
-    SELECT
-        AFLD.ID,
-        AFL.BANK_ID,
-        AFL.FACILITIES_ID,
-        AFL.MATURITY_TYPE,
-        ( NVL(SUM(AFL.AMOUNT), 0)) AS AVAILED, -- Handle duplicates
-        MAX(AFL.BG_EXPIRE_DATE) AS BG_EXPIRE_DATE,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS MATURITY,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 1) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS TOMORROW,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) <= TRUNC(SYSDATE - 2) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS DAY_AFTER_TOMORROW,
-        SUM(CASE 
-            WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE) THEN AFL.AMOUNT
-            ELSE 0
-        END) AS OVER_DUE
-    FROM 
-        AB_FACILITIES_LETTER AFL
-    LEFT JOIN 
-        AB_FACILITIES_LETTER_DET AFLD 
-    ON 
-        AFLD.MAST_ID = AFL.ID
-    WHERE 
-        AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
-        AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-        AFL.BANK_ID, AFL.FACILITIES_ID, AFL.MATURITY_TYPE, AFLD.ID 
-)
-,BANK_AMOUNT AS(
+                  WITH BANK_NAME as (
    SELECT 
-                ACCOUNT_NO,
-                AFL.BANK_ID,
-                NVL(SUM(AFL.AMOUNT), 0) AS AMOUNT
-    FROM 
-                      AB_FACILITIES_LETTER AFL
+           AST.REG_NAME, 
+           ASM.SR_IDS 
+     
+     FROM 
+           AB_SETUP_REGISTRATION ASM
+     JOIN  AB_SETUP_REGISTRATION AST ON AST.SR_ID=ASM.SR_IDS AND AST.REG_TYPE='BANK'
     WHERE 
-                     AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
-            AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-                ACCOUNT_NO,
-                AFL.BANK_ID
+           ASM.REG_TYPE='BANK LOV'
+      AND  ASM.ORG_ID = :GV_ORG_ID
+ GROUP BY
+          AST.REG_NAME , 
+          ASM.SR_IDS
+)
+,FOL_DETAIL AS(
+   SELECT 
+          BN.REG_NAME BANK_NAME ,  
+          AFLD.ID FOLD_ID,
+          ALD.LOOKUP_DET_NAME FACILITIES_NAME,
+          AFLD.AMOUNT FOL_AMT,
+          AFA.ID ACCOUNT_ID,
+          ASB.REG_CODE ACCOUNT_NAME,
+          ASCM.REG_NAME COMPANY_NAME
+     FROM 
+          AB_FACILITIES_LETTER AFL
+LEFT JOIN AB_FACILITIES_LETTER_DET AFLD ON AFLD.MAST_ID = AFL.ID
+LEFT JOIN AB_FACILITIES_LETTER_DET AFLDS ON AFLDS.IDS = AFLD.ID
+LEFT JOIN BANK_NAME BN ON BN.SR_IDS  = AFL.BANK_ID
+LEFT JOIN AB_LOOKUP_DETAIL ALD ON ALD.DET_ID=AFLD.FACILITIES_ID AND LOOKUP_ID = '032'
+LEFT JOIN AB_FACILITIES_LETTER_DET AFA ON AFA.IDS=AFLD.ID AND AFA.IMAGE_TYPE='FACILITIES ACCOUNT NUMBER'
+LEFT JOIN AB_SETUP_REGISTRATION ASB ON ASB.SR_ID=AFA.ACCOUNT_NO AND ASB.REG_TYPE='BANK LOV'
+LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_TYPE='COMPANY'
+    WHERE 
+          AFL.FACILITIES_TYPE = 'FACILITIES MAST'
+      AND AFL.ORG_ID = :GV_ORG_ID
+ GROUP BY
+          BN.REG_NAME,  
+          AFLD.ID,
+          ALD.LOOKUP_DET_NAME,
+          AFLD.AMOUNT,
+          AFA.ID,
+          ASB.REG_CODE,
+          ASCM.REG_NAME
+)
+,FUND_REQ_DETAIL AS (
+  SELECT 
+         IDS,
+         SUM(BALANCE) REQ_AMT
+    FROM
+         AB_PO_DEMAND_REQ_DET
+   WHERE 
+         ORG_ID=:GV_ORG_ID
+     AND DET_STATUS='CREATED'
+     AND STATUS='Y'
+GROUP BY
+       IDS
 )
 ,LIMIT_UTILIZATION AS(
-SELECT
-    Q1.BANK_ID AS BANK_ID, 
-    
-    Q1.REG_NAME AS BANK_NAME,
-  CN.REG_NAME AS COMPANY_NAME,
-  ACC.REG_CODE AS ACCOUNT_NO,
-    Q1.FACILITIES_NAME AS FACILITIES_NAME,
-    SUM(Q1.AMOUNT)AS TOTAL_AMOUNT,
-     MAX(Q2.AVAILED) AS AVAILED,
-      SUM(Q1.AMOUNT) - Q2.AVAILED AS BALANCE, 
-    SUM(Q2.MATURITY) AS MATURITY,
-    SUM(Q2.TOMORROW) AS TOMORROW,
-    SUM(Q2.DAY_AFTER_TOMORROW) AS DAY_AFTER_TOMORROW,
-    SUM(Q2.OVER_DUE) AS OVER_DUE,
-    Q1.FACILITIES_ID,
-    ACC.ID
-FROM 
-    QUERY1 Q1
-LEFT JOIN 
-    QUERY2 Q2 
-ON 
-    Q1.BANK_ID = Q2.BANK_ID
-     AND Q1.FACILITIES_ID = Q2.FACILITIES_ID
-    LEFT JOIN ACCOUNT_NOO ACC ON ACC.IDD = Q1.ID
-    LEFT JOIN COMPANY_NAME CN ON CN.ID = Q1.ID
-WHERE 
-    Q2.MATURITY_TYPE = 'NON FINANCIAL'
-GROUP BY 
-    Q1.BANK_ID, 
-    Q1.REG_NAME,
-   Q2.AVAILED,
-  CN.REG_NAME,
-  ACC.REG_CODE,
-    Q1.FACILITIES_NAME,
-    Q1.FACILITIES_ID,
-    ACC.ID
-)
-,FACILITIES_NAME AS(
-SELECT
-               BANK_ID,
-                FACILITIES_NAME,
-                FACILITIES_ID,
-                SUM( DISTINCT NVL(TOTAL_AMOUNT,0)) TOTAL_AMOUNT
-    FROM(
-    SELECT
-    Q1.BANK_ID AS BANK_ID, 
-    Q1.REG_NAME AS BANK_NAME,
-  CN.REG_NAME AS COMPANY_NAME,
-  ACC.REG_CODE AS ACCOUNT_NO,
-   Q1.FACILITIES_ID,
-    Q1.FACILITIES_NAME AS FACILITIES_NAME,
-    SUM( Q1.AMOUNT)AS TOTAL_AMOUNT,
-     MAX(Q2.AVAILED) AS AVAILED,
-      SUM(Q1.AMOUNT) - Q2.AVAILED AS BALANCE, 
-    SUM(Q2.MATURITY) AS MATURITY,
-    SUM(Q2.TOMORROW) AS TOMORROW,
-    SUM(Q2.DAY_AFTER_TOMORROW) AS DAY_AFTER_TOMORROW,
-    SUM(Q2.OVER_DUE) AS OVER_DUE
-FROM 
-    QUERY1 Q1
-LEFT JOIN 
-    QUERY2 Q2 
-ON 
-    Q1.BANK_ID = Q2.BANK_ID
-     AND Q1.FACILITIES_ID = Q2.FACILITIES_ID
-    LEFT JOIN ACCOUNT_NOO ACC ON ACC.IDD = Q1.ID
-    LEFT JOIN COMPANY_NAME CN ON CN.ID = Q1.ID
-WHERE 
-    Q2.MATURITY_TYPE = 'NON FINANCIAL'
-GROUP BY 
-    Q1.BANK_ID, 
-    Q1.REG_NAME,
-   Q2.AVAILED,
-  CN.REG_NAME,
-  ACC.REG_CODE,
-    Q1.FACILITIES_NAME,
-    Q1.FACILITIES_ID)
-  GROUP BY
-            BANK_ID,
-            FACILITIES_NAME,
-            FACILITIES_ID
- ),
-LIMIT_AMOUNT AS( SELECT 
-                ACCOUNT_NO,
-                AFL.BANK_ID,
-                NVL(SUM(AFL.AMOUNT), 0) AS AMOUNT
-    FROM 
-                      AB_FACILITIES_LETTER AFL
+  SELECT   
+          AFL.ID,
+          AFL.FACILITIES_ID,
+          AFL.ACCOUNT_NO,
+          AFL.FACILITIES_TYPE,
+          AFL.STATUS,
+          AFL.SUPPLIER_ID,
+          MAX(CASE    WHEN ASR.SR_ID = AFL.SUPPLIER_ID AND ASR.REG_TYPE = 'VENDOR'   THEN ASR.PARTY_NAME         ELSE NULL       END) AS Supplier_Name,
+          AFL.BG_TYPE,
+          AFL.AMOUNT,
+          AFL.BG_ISSU_DATE,
+          AFL.BG_EXPIRE_DATE,
+          AFL.BG_NUMBER,
+          AFL.AGENCY_ID,
+          MAX(CASE WHEN ASR.SR_ID = AFL.AGENCY_ID AND ASR.REG_TYPE = 'AGENCY'   THEN ASR.REG_NAME  ELSE NULL     END) AS Agency_Name,
+          AFL.ORDER_PURPOSE,
+          MAX(CASE   WHEN ALD.DET_ID = AFL.ORDER_PURPOSE   THEN ALD.LOOKUP_DET_NAME    ELSE NULL    END) AS PURPOSE,
+          AFL.BG_CATEGORY_ID,
+          MAX(CASE     WHEN ALD.DET_ID = AFL.BG_CATEGORY_ID THEN ALD.LOOKUP_DET_NAME     ELSE NULL   END) AS CATEGORY,
+          CASE    WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT) ELSE NULL END AS MATURITY, 
+          CASE     WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 1) THEN TO_CHAR(AFL.AMOUNT)  ELSE NULL   END AS TOMORROW,
+          CASE 
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) < TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
+          ELSE NULL
+          END AS DAY_AFTER_TOMORROW, 
+          CASE 
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT)
+          ELSE NULL
+          END AS OVER_DUE,         
+          'ATTACMENT' AS ATTACHMENT,
+          AFL.MATURITY_TYPE,
+          CASE WHEN AFL.MATURITY_TYPE='FINANCIAL' AND 
+          TRUNC(AFL.BG_EXPIRE_DATE)=TRUNC(SYSDATE) AND AFL.AMOUNT-NVL(FRD.REQ_AMT,0) > 0 THEN 'FUNDS REQUISITION' ELSE NULL END AS FUNDS_REQUISITION,
+          INITCAP(AFL.CREATED_BY) || ' (' || TO_CHAR(AFL.CREATED_ON, 'DD-MON-YYYY HH:MIPM') || ')' AS CREATED_BY
+     FROM AB_FACILITIES_LETTER AFL  
+LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID) 
+LEFT JOIN AB_LOOKUP_DETAIL ALD ON ALD.DET_ID IN (AFL.BG_CATEGORY_ID, AFL.ORDER_PURPOSE, AFL.BG_NATURE, AFL.FACILITIES_ID) 
+LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
     WHERE 
-                     AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
-            AND AFL.ORG_ID = NVL(:GV_ORG_ID, AFL.ORG_ID)
-    GROUP BY 
-                ACCOUNT_NO,
-                AFL.BANK_ID
- )
- ,FINAL_SUM AS(
-    SELECT
-             LU.BANK_ID,
-             LU.BANK_NAME,
-             COMPANY_NAME,
-             LU.ACCOUNT_NO,
-             LU.FACILITIES_NAME,
-             FN.TOTAL_AMOUNT,
-             LA.AMOUNT AVAILED,
-             0 BALANCE,
-             LU.MATURITY,
+          AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
+      AND AFL.MATURITY_TYPE = 'NON FINANCIAL'
+      AND AFL.ORG_ID = NVL(:GV_ORG_ID,AFL.ORG_ID)
+ GROUP BY AFL.ID,
+          AFL.FACILITIES_TYPE,
+          AFL.ACCOUNT_NO,
+          AFL.STATUS,
+          AFL.BG_NUMBER,
+          AFL.SUPPLIER_ID,
+          AFL.BG_TYPE,
+          AFL.FACILITIES_ID,
+          AFL.AMOUNT,
+          AFL.MATURITY_TYPE,
+          AFL.BG_ISSU_DATE,
+          AFL.BG_EXPIRE_DATE,
+          AFL.AGENCY_ID,
+          AFL.ORDER_PURPOSE,
+          AFL.BG_CATEGORY_ID,
+          AFL.CREATED_ON,
+          AFL.CREATED_BY,
+          AFL.MATURITY,
+          AFL.TOMORROW,
+          AFL.DAY_AFTER_TOMORROW,
+          AFL.OVER_DUE,
+          NVL(FRD.REQ_AMT,0)
+)
+,TOTAL_AVAILED_AMOUNT AS(
+  SELECT   
+          AFL.FACILITIES_ID,
+          SUM(AFL.AMOUNT) TOTAL_AVA_AMT
+     FROM AB_FACILITIES_LETTER AFL  
+--LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID)
+--LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
+    WHERE 
+          AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
+      AND AFL.MATURITY_TYPE = 'NON FINANCIAL'
+      AND AFL.ORG_ID = NVL(:GV_ORG_ID,AFL.ORG_ID)
+ GROUP BY 
+          AFL.FACILITIES_ID
+)
+  SELECT 
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME) AS BANK_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME) AS FACILITIES_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT) AS AMOUNT_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS AVAILD_ROWSPAN,
+            -- COUNT(*) OVER (PARTITION BY LU.MATURITY) AS MATURITY_ROWSPAN,
+            -- COUNT(*) OVER (PARTITION BY LU.MATURITY, LU.TOMORROW) AS TOMORROW_ROWSPAN,
+            -- COUNT(*) OVER (PARTITION BY LU.MATURITY, LU.TOMORROW, LU.DAY_AFTER_TOMORROW) AS DAY_AFTER_TOMORROW_ROWSPAN,
+            -- COUNT(*) OVER (PARTITION BY LU.MATURITY, LU.TOMORROW, LU.DAY_AFTER_TOMORROW, LU.OVER_DUE) AS OVER_DUE_ROWSPAN,
+            FD.BANK_NAME,
+            FD.COMPANY_NAME,
+            FD.ACCOUNT_NAME ACCOUNT_NO,
+            FD.FACILITIES_NAME,
+            SUM( AVL.TOTAL_AVA_AMT) AS TOTAL_AVAILED,
+            SUM( FD.FOL_AMT) AS TOTAL_AMOUNT,
+            SUM(LU.AMOUNT) AS AVAILED,
+            SUM(FD.FOL_AMT) - SUM(AVL.TOTAL_AVA_AMT) BALANCE
+            -- SUM(LU.MATURITY) AS MATURITY,
+            -- SUM(LU.TOMORROW) AS TOMORROW,
+            -- SUM(LU.DAY_AFTER_TOMORROW) AS DAT,
+            -- SUM(LU.OVER_DUE) AS OVER_DUE
+        FROM LIMIT_UTILIZATION LU
+        JOIN FOL_DETAIL FD ON FD.FOLD_ID = LU.FACILITIES_ID AND FD.ACCOUNT_ID = LU.ACCOUNT_NO
+        JOIN TOTAL_AVAILED_AMOUNT AVL ON AVL.FACILITIES_ID = LU.FACILITIES_ID
+        GROUP BY 
+            FD.BANK_NAME,
+            FD.COMPANY_NAME,
+            FD.ACCOUNT_NAME,
+            FD.FACILITIES_NAME,
+            FD.FOL_AMT,
+            AVL.TOTAL_AVA_AMT,
+            LU.MATURITY,
             LU.TOMORROW,
             LU.DAY_AFTER_TOMORROW,
-            LU.OVER_DUE,
-            LU.FACILITIES_ID
-    FROM
-                      LIMIT_UTILIZATION LU 
-    LEFT JOIN  FACILITIES_NAME FN ON FN.BANK_ID=LU.BANK_ID
-             AND FN.FACILITIES_ID=LU.FACILITIES_ID
-    LEFT JOIN LIMIT_AMOUNT  LA ON LA.BANK_ID=LU.BANK_ID
-             AND  LA.ACCOUNT_NO=LU.ID
-)
-,BALANCE_AMOUNT AS(SELECT
-          FS.BANK_ID,
-          SUM(DISTINCT NVL(TOTAL_AMOUNT, 0)) - SUM(DISTINCT NVL(AVAILED, 0)) AS BALANCE,
-        --  NVL( SUM(FS.AVAILED),0) BALANCE,
-          FS.FACILITIES_ID
-    FROM
-           FINAL_SUM FS
-  
-    GROUP BY
-           FS.BANK_ID ,
-           FS.FACILITIES_ID
-           )
-    SELECT
-             LU.BANK_ID,
-             LU.BANK_NAME,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME) AS BANK_ROWSPAN,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME, FACILITIES_NAME) AS  FACILITIES_ROWSPAN,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME, FACILITIES_NAME , TOTAL_AMOUNT) AS AMOUNT_ROWSPAN,
-             COUNT(*) OVER (PARTITION BY LU.BANK_NAME, FACILITIES_NAME , TOTAL_AMOUNT,BA.BALANCE) AS BALANCE_ROWSPAN,
-             TOTAL_AMOUNT,
-             COMPANY_NAME,
-             ACCOUNT_NO,
-             FACILITIES_NAME,
-          
-             AVAILED,
-             BA.BALANCE
-            --  LU.MATURITY,
-            --  LU.TOMORROW,
-            --  LU.DAY_AFTER_TOMORROW,
-            --  LU.OVER_DUE,
-            --  LU.FACILITIES_ID
-    FROM
-                        FINAL_SUM LU 
-     LEFT JOIN  BALANCE_AMOUNT BA ON BA.FACILITIES_ID=LU.FACILITIES_ID
- ) LOOP
-    
-    htp.p('<tr>');
-    
-    IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
-      htp.p('<td rowspan="'||x.BANK_ROWSPAN||'">'||htf.escape_sc(x.BANK_NAME)||'</td>');
-    END IF;
-        htp.p('<td>'||NVL(htf.escape_sc(x.COMPANY_NAME), '0')||'</td>');
-    htp.p('<td>'||NVL(htf.escape_sc(x.ACCOUNT_NO), '0')||'</td>');
+            LU.OVER_DUE
+    ) 
+    LOOP
+        htp.p('<tr>');
 
+        -- BANK_NAME rowspan logic
+        IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
+            htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        END IF;
 
-     IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
-      htp.p('<td rowspan="'||x.FACILITIES_ROWSPAN||'">'||htf.escape_sc(x.FACILITIES_NAME)||'</td>');
-    END IF;
-    
-    
-     IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
-      htp.p('<td rowspan="'||x.AMOUNT_ROWSPAN||'">'||htf.escape_sc(x.TOTAL_AMOUNT)||'</td>');
-    END IF;
-    
-    htp.p('<td>'||NVL(htf.escape_sc(x.AVAILED), '0')||'</td>');
-      IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
-      htp.p('<td rowspan="'||x.BALANCE_ROWSPAN||'">'||htf.escape_sc(x.BALANCE)||'</td>');
-    END IF;
-   
-    -- htp.p('<td>'||NVL(htf.escape_sc(x.MATURITY), '0')||'</td>');
-    -- htp.p('<td>'||NVL(htf.escape_sc(x.TOMORROW), '0')||'</td>');
-    -- htp.p('<td>'||NVL(htf.escape_sc(x.DAY_AFTER_TOMORROW), '0')||'</td>');
-    -- htp.p('<td>'||NVL(htf.escape_sc(x.OVER_DUE), '0')||'</td>');
-    htp.p('</tr>');
-    
-    PREV_BANK_NAME := x.BANK_NAME;
-    PREV_FACILITIES_NAME := x.FACILITIES_NAME;
-    PREV_TOTAL_AMOUNT := x.TOTAL_AMOUNT;
-    PREV_BALANCE := x.BALANCE;
-  END LOOP;  
+        htp.p('<td>' || NVL(htf.escape_sc(x.COMPANY_NAME), '0') || '</td>');
+        htp.p('<td>' || NVL(htf.escape_sc(x.ACCOUNT_NO), '0') || '</td>');
+
+        -- FACILITIES_NAME rowspan logic
+        IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+            htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+        END IF;
+
+        -- TOTAL_AMOUNT rowspan logic
+        IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
+            htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
+        END IF;
+
+        -- AVAILED
+        htp.p('<td>' || NVL(htf.escape_sc(x.AVAILED), '0') || '</td>');
+
+        -- TOTAL_AVAILED rowspan logic
+        IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
+            htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
+        END IF;
+
+        -- BALANCE rowspan logic
+        IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
+            htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
+        END IF;
+
+        -- MATURITY rowspan logic
+        -- IF PREV_MATURITY IS NULL OR x.MATURITY <> PREV_MATURITY THEN
+        --     htp.p('<td rowspan="' || NVL(x.MATURITY_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.MATURITY), '0') || '</td>');
+        -- END IF;
+
+        -- -- TOMORROW rowspan logic
+        -- IF PREV_TOMORROW IS NULL OR x.TOMORROW <> PREV_TOMORROW THEN
+        --     htp.p('<td rowspan="' || NVL(x.TOMORROW_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOMORROW), '0') || '</td>');
+        -- END IF;
+
+        -- -- DAY_AFTER_TOMORROW rowspan logic
+        -- IF PREV_DAY IS NULL OR x.DAT <> PREV_DAY THEN
+        --     htp.p('<td rowspan="' || NVL(x.DAY_AFTER_TOMORROW_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.DAT), '0') || '</td>');
+        -- END IF;
+
+        -- -- OVER_DUE rowspan logic
+        -- IF PREV_OVER_DUE IS NULL OR x.OVER_DUE <> PREV_OVER_DUE THEN
+        --     htp.p('<td rowspan="' || NVL(x.OVER_DUE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.OVER_DUE), '0') || '</td>');
+        -- END IF;
+
+        htp.p('</tr>');
+
+        -- UPDATE PREVIOUS VARIABLES AFTER PRINTING ROW
+        PREV_BANK_NAME := x.BANK_NAME;
+        PREV_FACILITIES_NAME := x.FACILITIES_NAME;
+        PREV_TOTAL_AMOUNT := x.TOTAL_AMOUNT;
+        PREV_BALANCE := x.BALANCE;
+        PREV_AVAILD := x.TOTAL_AVAILED;
+        -- PREV_MATURITY := x.MATURITY;
+        -- PREV_TOMORROW := x.TOMORROW;
+        -- PREV_DAY := x.DAT;
+        -- PREV_OVER_DUE := x.OVER_DUE;
+    END LOOP;  
+
+END; 
+htp.p('</body>');
+htp.p('</html>');
 END;
-  
-
-htp.p('</body>');htp.p('</html>');END;
