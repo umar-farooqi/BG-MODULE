@@ -101,6 +101,7 @@ BEGIN
       
  </tr>');
 DECLARE
+ PREV_FO_ID VARCHAR2(1000) :=NULL;
   PREV_BANK_NAME VARCHAR2(1000) := NULL;
   PREV_FACILITIES_NAME VARCHAR2(1000) := NULL;
   PREV_TOTAL_AMOUNT VARCHAR2(1000) := NULL;
@@ -129,6 +130,7 @@ BEGIN
 )
 ,FOL_DETAIL AS(
    SELECT 
+          AFL.ID FOL_ID,
           BN.REG_NAME BANK_NAME ,  
           AFLD.ID FOLD_ID,
           ALD.LOOKUP_DET_NAME FACILITIES_NAME,
@@ -149,6 +151,7 @@ LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_T
           AFL.FACILITIES_TYPE = 'FACILITIES MAST'
       AND AFL.ORG_ID = :GV_ORG_ID
  GROUP BY
+          AFL.ID,
           BN.REG_NAME,  
           AFLD.ID,
           ALD.LOOKUP_DET_NAME,
@@ -242,7 +245,7 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
           AFL.FACILITIES_ID,
           SUM(AFL.AMOUNT) TOTAL_AVA_AMT
      FROM AB_FACILITIES_LETTER AFL  
-LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID)
+--LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID)
 --LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
     WHERE 
           AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
@@ -251,13 +254,13 @@ LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY
  GROUP BY 
           AFL.FACILITIES_ID
 )
-  SELECT 
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME) AS BANK_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME) AS FACILITIES_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT) AS AMOUNT_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS AVAILD_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS BALANCE_ROWSPAN,
-   
+  SELECT    COUNT(*) OVER (PARTITION BY FD.FOL_ID) AS ID_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME) AS BANK_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME) AS FACILITIES_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT) AS AMOUNT_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS AVAILD_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS BALANCE_ROWSPAN,
+            FD.FOL_ID,
             FD.BANK_NAME,
             FD.COMPANY_NAME,
             FD.ACCOUNT_NAME ACCOUNT_NO,
@@ -274,6 +277,7 @@ LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY
         JOIN FOL_DETAIL FD ON FD.FOLD_ID = LU.FACILITIES_ID AND FD.ACCOUNT_ID = LU.ACCOUNT_NO
         JOIN TOTAL_AVAILED_AMOUNT AVL ON AVL.FACILITIES_ID = LU.FACILITIES_ID
         GROUP BY 
+            FD.FOL_ID,
             FD.BANK_NAME,
             FD.COMPANY_NAME,
             FD.ACCOUNT_NAME,
@@ -288,45 +292,97 @@ LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY
     LOOP
         htp.p('<tr>');
 
-        -- BANK_NAME rowspan logic
-        IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
+        -- -- BANK_NAME rowspan logic
+        -- IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
+        --     htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        -- END IF;
+        
+        
+        IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+             htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        ELSE
+            -- **Normal rowspan for BANK Name**
+            IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
             htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        END IF;
         END IF;
 
         htp.p('<td>' || NVL(htf.escape_sc(x.COMPANY_NAME), '0') || '</td>');
         htp.p('<td>' || NVL(htf.escape_sc(x.ACCOUNT_NO), '0') || '</td>');
 
         -- FACILITIES_NAME rowspan logic
-        IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+           IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
             htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+        ELSE
+            -- **Normal rowspan for Facilities Name**
+            IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+                htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+            END IF;
         END IF;
 
-        -- TOTAL_AMOUNT rowspan logic
+        -- -- FACILITIES_NAME rowspan logic
+        -- IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+        --     htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+        -- END IF;
+             -- FACILITIES_NAME rowspan logic
+           IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+               htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
+        ELSE
+             -- TOTAL_AMOUNT rowspan logic
         IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
             htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
         END IF;
+        END IF;
+        -- -- TOTAL_AMOUNT rowspan logic
+        -- IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
+        --     htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
+        -- END IF;
 
         -- AVAILED
         htp.p('<td>' || NVL(htf.escape_sc(x.AVAILED), '0') || '</td>');
-
-        -- TOTAL_AVAILED rowspan logic
+       -- FACILITIES_NAME rowspan logic
+           IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+              htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
+        ELSE
+             -- TOTAL_AVAILED rowspan logic
         IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
             htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
         END IF;
-
-        -- BALANCE rowspan logic
+        END IF;
+        -- -- TOTAL_AVAILED rowspan logic
+        -- IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
+        --     htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
+        -- END IF;
+-- FACILITIES_NAME rowspan logic
+           IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+              htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
+        ELSE
+           -- BALANCE rowspan logic
         IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
             htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
         END IF;
-  htp.p('<td>' || NVL(htf.escape_sc(x.MATURITY), '0') || '</td>');
-    htp.p('<td>' || NVL(htf.escape_sc(x.TOMORROW), '0') || '</td>');
-      htp.p('<td>' || NVL(htf.escape_sc(x.DAT), '0') || '</td>');
-        htp.p('<td>' || NVL(htf.escape_sc(x.OVER_DUE), '0') || '</td>');
-     
+        END IF;
+
+
+        -- -- BALANCE rowspan logic
+        -- IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
+        --     htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
+        -- END IF;
+     htp.p('<td>' || NVL(htf.escape_sc(x.MATURITY), '0') || '</td>');
+     htp.p('<td>' || NVL(htf.escape_sc(x.TOMORROW), '0') || '</td>');
+     htp.p('<td>' || NVL(htf.escape_sc(x.DAT), '0') || '</td>');
+     htp.p('<td>' || NVL(htf.escape_sc(x.OVER_DUE), '0') || '</td>');
+
      
         htp.p('</tr>');
 
         -- UPDATE PREVIOUS VARIABLES AFTER PRINTING ROW
+        PREV_FO_ID  := x.FOL_ID;
         PREV_BANK_NAME := x.BANK_NAME;
         PREV_FACILITIES_NAME := x.FACILITIES_NAME;
         PREV_TOTAL_AMOUNT := x.TOTAL_AMOUNT;
@@ -354,15 +410,13 @@ htp.p('<table id="t10" >');
       
  </tr>');
 DECLARE
+  PREV_FO_ID VARCHAR2(1000) :=NULL;
   PREV_BANK_NAME VARCHAR2(1000) := NULL;
   PREV_FACILITIES_NAME VARCHAR2(1000) := NULL;
   PREV_TOTAL_AMOUNT VARCHAR2(1000) := NULL;
   PREV_BALANCE VARCHAR2(1000) := NULL;
-  PREV_AVAILD VARCHAR2(1000) :=NULL;
-  PREV_MATURITY VARCHAR2(1000) :=NULL;
-  PREV_TOMORROW VARCHAR2(1000) :=NULL;
-  PREV_DAY VARCHAR2(1000) :=NULL;
-  PREV_OVER_DUE VARCHAR2(1000) :=NULL;
+    PREV_AVAILD VARCHAR2(1000) :=NULL;
+
 BEGIN
   FOR x IN (
                   WITH BANK_NAME as (
@@ -381,7 +435,7 @@ BEGIN
           ASM.SR_IDS
 )
 ,FOL_DETAIL AS(
-   SELECT 
+   SELECT AFL.ID FOL_ID,
           BN.REG_NAME BANK_NAME ,  
           AFLD.ID FOLD_ID,
           ALD.LOOKUP_DET_NAME FACILITIES_NAME,
@@ -401,7 +455,7 @@ LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_T
     WHERE 
           AFL.FACILITIES_TYPE = 'FACILITIES MAST'
       AND AFL.ORG_ID = :GV_ORG_ID
- GROUP BY
+ GROUP BY AFL.ID,
           BN.REG_NAME,  
           AFLD.ID,
           ALD.LOOKUP_DET_NAME,
@@ -505,14 +559,13 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
           AFL.FACILITIES_ID
 )
   SELECT 
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME) AS BANK_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME) AS FACILITIES_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT) AS AMOUNT_ROWSPAN,
-            COUNT(*) OVER (PARTITION BY FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS AVAILD_ROWSPAN,
-            -- COUNT(*) OVER (PARTITION BY LU.MATURITY) AS MATURITY_ROWSPAN,
-            -- COUNT(*) OVER (PARTITION BY LU.MATURITY, LU.TOMORROW) AS TOMORROW_ROWSPAN,
-            -- COUNT(*) OVER (PARTITION BY LU.MATURITY, LU.TOMORROW, LU.DAY_AFTER_TOMORROW) AS DAY_AFTER_TOMORROW_ROWSPAN,
-            -- COUNT(*) OVER (PARTITION BY LU.MATURITY, LU.TOMORROW, LU.DAY_AFTER_TOMORROW, LU.OVER_DUE) AS OVER_DUE_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID) AS ID_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME) AS BANK_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME) AS FACILITIES_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT) AS AMOUNT_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT) AS AVAILD_ROWSPAN,
+            COUNT(*) OVER (PARTITION BY FD.FOL_ID, FD.BANK_NAME, FD.FACILITIES_NAME, FD.FOL_AMT, AVL.TOTAL_AVA_AMT, (SUM(FD.FOL_AMT) - SUM(AVL.TOTAL_AVA_AMT))) AS BALANCE_ROWSPAN,
+            FD.FOL_ID,   
             FD.BANK_NAME,
             FD.COMPANY_NAME,
             FD.ACCOUNT_NAME ACCOUNT_NO,
@@ -521,91 +574,104 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             SUM( FD.FOL_AMT) AS TOTAL_AMOUNT,
             SUM(LU.AMOUNT) AS AVAILED,
             SUM(FD.FOL_AMT) - SUM(AVL.TOTAL_AVA_AMT) BALANCE
-            -- SUM(LU.MATURITY) AS MATURITY,
-            -- SUM(LU.TOMORROW) AS TOMORROW,
-            -- SUM(LU.DAY_AFTER_TOMORROW) AS DAT,
-            -- SUM(LU.OVER_DUE) AS OVER_DUE
+            
+     
         FROM LIMIT_UTILIZATION LU
         JOIN FOL_DETAIL FD ON FD.FOLD_ID = LU.FACILITIES_ID AND FD.ACCOUNT_ID = LU.ACCOUNT_NO
         JOIN TOTAL_AVAILED_AMOUNT AVL ON AVL.FACILITIES_ID = LU.FACILITIES_ID
         GROUP BY 
+       FD.FOL_ID,
             FD.BANK_NAME,
             FD.COMPANY_NAME,
             FD.ACCOUNT_NAME,
             FD.FACILITIES_NAME,
             FD.FOL_AMT,
-            AVL.TOTAL_AVA_AMT,
-            LU.MATURITY,
-            LU.TOMORROW,
-            LU.DAY_AFTER_TOMORROW,
-            LU.OVER_DUE
+            AVL.TOTAL_AVA_AMT
     ) 
     LOOP
         htp.p('<tr>');
-
-        -- BANK_NAME rowspan logic
-        IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
+     -- BANK_NAME rowspan logic
+        -- IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
+        --     htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        -- END IF;
+        IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+             htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
+        ELSE
+            -- **Normal rowspan for BANK Name**
+            IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
             htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
         END IF;
-
+        END IF;
+        -- COMPANY_NAME (No rowspan needed)
         htp.p('<td>' || NVL(htf.escape_sc(x.COMPANY_NAME), '0') || '</td>');
+
+        -- ACCOUNT_NO (No rowspan needed)
         htp.p('<td>' || NVL(htf.escape_sc(x.ACCOUNT_NO), '0') || '</td>');
 
-        -- FACILITIES_NAME rowspan logic
-        IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+      -- FACILITIES_NAME rowspan logic
+           IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
             htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+        ELSE
+            -- **Normal rowspan for Facilities Name**
+            IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
+                htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
+            END IF;
         END IF;
-
-        -- TOTAL_AMOUNT rowspan logic
+     IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+               htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
+        ELSE
+             -- TOTAL_AMOUNT rowspan logic
         IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
             htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
         END IF;
+        END IF;
+        -- -- TOTAL_AMOUNT rowspan logic
+        -- IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
+        --     htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
+        -- END IF;
 
-        -- AVAILED
+        -- -- AVAILED (No rowspan needed)
         htp.p('<td>' || NVL(htf.escape_sc(x.AVAILED), '0') || '</td>');
-
-        -- TOTAL_AVAILED rowspan logic
+      IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+              htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
+        ELSE
+             -- TOTAL_AVAILED rowspan logic
         IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
             htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
         END IF;
-
-        -- BALANCE rowspan logic
-        IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
-            htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
         END IF;
-
-        -- MATURITY rowspan logic
-        -- IF PREV_MATURITY IS NULL OR x.MATURITY <> PREV_MATURITY THEN
-        --     htp.p('<td rowspan="' || NVL(x.MATURITY_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.MATURITY), '0') || '</td>');
+           IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+            -- **Ensure Facilities Name is displayed when the bank changes**
+              htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
+        ELSE
+           -- BALANCE rowspan logic
+        IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
+            htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
+        END IF;
+        END IF;
+        -- -- TOTAL_AVAILED rowspan logic
+        -- IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
+        --     htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
         -- END IF;
 
-        -- -- TOMORROW rowspan logic
-        -- IF PREV_TOMORROW IS NULL OR x.TOMORROW <> PREV_TOMORROW THEN
-        --     htp.p('<td rowspan="' || NVL(x.TOMORROW_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOMORROW), '0') || '</td>');
-        -- END IF;
-
-        -- -- DAY_AFTER_TOMORROW rowspan logic
-        -- IF PREV_DAY IS NULL OR x.DAT <> PREV_DAY THEN
-        --     htp.p('<td rowspan="' || NVL(x.DAY_AFTER_TOMORROW_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.DAT), '0') || '</td>');
-        -- END IF;
-
-        -- -- OVER_DUE rowspan logic
-        -- IF PREV_OVER_DUE IS NULL OR x.OVER_DUE <> PREV_OVER_DUE THEN
-        --     htp.p('<td rowspan="' || NVL(x.OVER_DUE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.OVER_DUE), '0') || '</td>');
+        -- -- BALANCE rowspan logic
+        -- IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
+        --     htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
         -- END IF;
 
         htp.p('</tr>');
 
-        -- UPDATE PREVIOUS VARIABLES AFTER PRINTING ROW
+        -- **Update Previous Variables After Printing Row**
+        PREV_FO_ID  := x.FOL_ID;
         PREV_BANK_NAME := x.BANK_NAME;
         PREV_FACILITIES_NAME := x.FACILITIES_NAME;
         PREV_TOTAL_AMOUNT := x.TOTAL_AMOUNT;
-        PREV_BALANCE := x.BALANCE;
         PREV_AVAILD := x.TOTAL_AVAILED;
-        -- PREV_MATURITY := x.MATURITY;
-        -- PREV_TOMORROW := x.TOMORROW;
-        -- PREV_DAY := x.DAT;
-        -- PREV_OVER_DUE := x.OVER_DUE;
+        PREV_BALANCE := x.BALANCE;
     END LOOP;  
 
 END; 
