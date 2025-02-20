@@ -1,4 +1,3 @@
--- agr hm ne FOL_id ke against date lena ha to phir ye query use kry gy
 BEGIN
     htp.p('<!DOCTYPE html>');
     htp.p('<html>
@@ -7,8 +6,25 @@ BEGIN
     .page { margin: 0 auto;width: 100%;padding: 0; /* Ensure no padding around the page */}  
     @page { margin: 10mm;}
     @media print { table { page-break-after:auto; } tr { page-break-inside:avoid; page-break-after:auto; }td { page-break-inside:avoid; page-break-after:auto; }thead { display:table-header-group; }tfoot { display:table-footer-group; }}
-    #left { width: 15%;float: left;padding: 0; /* Remove padding */margin-left: 0; /* Remove margin to align to left */}
-    #right { width: 85%; /* Adjust width to accommodate more space for the right side */float: left; /* Ensures both left and right align side by side */text-align: center;padding: 0; /* Remove padding */margin-right: 0; /* Remove margin */}
+    #left {
+    width: 15%; /* Adjust width for the logo */
+    display: flex;
+    align-items: center;
+}
+   #right {
+    width: 85%; /* Adjusts width for the date */
+    display: flex;
+    justify-content: flex-end; /* Aligns text to the right */
+    align-items: center;
+    text-align: right;
+}
+.page-header {
+    display: flex;
+    justify-content: space-between; /* Ensures left and right content align properly */
+    align-items: center; /* Centers items vertically */
+    width: 99%;
+    padding: 10px 0;
+}
     p { text-align: center;font-size: 12px; /* Reduced font size */margin: 4px 0;}
     table { width: 100%; /* Full width for each table */margin: 0; /* Removed margin to reduce the gap */border-collapse: collapse;}         
     tr { page-break-inside: avoid;page-break-after: auto;height: 20px; /* Sets a fixed height for rows */}
@@ -24,6 +40,7 @@ BEGIN
     #t7 td { padding: 1px 1px; /* Minimized padding */line-height: 0; /* Reduces the height of the text line */font-size: 12px; /* Optional: Reduce font size to further minimize height */}
     #t9{ width: 99.5%;margin-bottom: 0px;} #t9 td {word-wrap: break-word;}
     #t10{ width: 99.5%;margin-bottom: 0px;} #t9 td {word-wrap: break-word;}
+    
   </style>
    <script>
         function adjustColumnWidth() {
@@ -53,37 +70,93 @@ BEGIN
           });
         }
        
-        function printDiv(printpage) {
-          adjustColumnWidth();
-          var headstr = "<html><head><title></title><style>";
-          headstr += "@page { size: A4 landscape; margin: 10mm; }";
-          headstr += "body { margin: 0; padding: 0; font-family: Arial, sans-serif; }";
-          headstr += ".button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }";
-          headstr += ".button1 { font-size: 16px; }";
-          headstr += "table { border-collapse: collapse; width: 100%; margin: 0; padding: 0; }";
-          headstr += "th, td { text-align: left; padding: 3px; font-size: 10px; line-height: 1.1; }";
-          headstr += "th { background-color: rgba(146, 208, 80, 0.237); -webkit-print-color-adjust: exact; print-color-adjust: exact; }";
-          headstr += ".separator { border-top: 1px solid black; }";
-          headstr += "h3 { margin: 0; display: flex; align-items: center; justify-content: center; background-color: rgba(146, 208, 80); border: 1px solid black; -webkit-print-color-adjust: exact; print-color-adjust: exact; }";
-          headstr += "@media print { thead {display: table-header-group;} tfoot {display: table-footer-group;} }";
-          headstr += "h2 { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; padding: 0; text-align: center; }";
-          headstr += "#div_print1 { margin: 0; padding: 0; }";
-          headstr += "</style></head><body>";
-          var footstr = "</body></html>";
-          var newstr = document.getElementById(printpage).innerHTML;
-          var oldstr = document.body.innerHTML;
-          document.body.innerHTML = headstr + newstr + footstr;
-          window.print();
-          document.body.innerHTML = oldstr;
-          return false;
+   function printDiv(printpage) {
+    adjustColumnWidth();
+    
+    var headstr = "<html><head><title></title><style>";
+    headstr += `
+        .page { margin: 0 auto; width: 100%; padding: 0; }
+        @page { margin: 10mm; size: A4 landscape; }
+        @media print { 
+            table { page-break-after:auto; } 
+            tr { page-break-inside:avoid; page-break-after:auto; }
+            td { page-break-inside:avoid; page-break-after:auto; }
+            thead { display:table-header-group; } 
+            tfoot { display:table-footer-group; } 
         }
+   
+        p { text-align: center; font-size: 12px; margin: 4px 0; }
+        table { width: 100%; margin: 0; border-collapse: collapse; }
+        tr { page-break-inside: avoid; page-break-after: auto; height: 20px; }
+        th, td { border: 1px solid #D0F0C0; text-align: center; font-size: 8px; height: 40px; overflow: hidden; word-wrap: break-word; }
+        th { text-align: center; font-size: 8px; padding-top: 0.1em; padding-bottom: 0.1em; width: 100%; word-wrap: break-word; overflow: hidden; }
+        .flex-container { display: flex; align-items: flex-start; gap: 0px; flex-wrap: wrap; }
+        #t1, #t2, #t4, #t5 { width: 24.9%; margin: 0; padding: 0; margin-bottom: 8px; }
+        .header { padding: 1px 1px; background-color: #7AAE43 !important;  color: black; font-size: 10px; }
+        #t3 { width: 99.5%; background-color: #689D3A; color: white; margin-bottom: 2px; }
+        #t7 { width: 99.5%; background-color: #D0F0C0; margin-bottom: 0px; border-collapse: collapse; }
+        #t7 td { padding: 1px 1px; line-height: 0; font-size: 12px; }
+        #t9, #t10 { width: 99.5%; margin-bottom: 0px; }
+        #t9 td, #t10 td { word-wrap: break-word; }
+
+        /* Background color for #t9 and #t10 table headers */
+        #t9 th, #t10 th { background-color: #C2DEA4; -webkit-print-color-adjust: exact; print-color-adjust: exact;  }
+     #left {
+        flex: 0 0 auto;
+    width: 15%; /* Adjust width for the logo */
+    display: flex;
+    align-items: center;
+}
+ #right {
+    flex: 1; /* Takes up remaining space */
+    display: flex;
+    justify-content: flex-end; /* Aligns text to the right */
+    align-items: center; /* Aligns date text vertically with image */
+    text-align: right;
+    white-space: nowrap; /* Ensures the date stays in a single line */
+}
+.page-header {
+    display: flex;
+    justify-content: space-between; /* Ensures left and right content align properly */
+    align-items: center; /* Centers items vertically */
+    width: 97.5%;
+    padding: 10px 0;
+}
+    `;
+    headstr += "</style></head><body>";
+
+    var footstr = "</body></html>";
+    var newstr = document.getElementById(printpage).innerHTML;
+    var oldstr = document.body.innerHTML;
+
+    document.body.innerHTML = headstr + newstr + footstr;
+    window.print();
+    document.body.innerHTML = oldstr;
+
+    return false;
+}
+
       </script>
 </head>');
 
     htp.p('<body>');
     htp.p('<button class="button" onclick="printDiv(''all_reports'')">Print Reports</button>');
     htp.p('<div id="all_reports">');
-   
+ htp.p('<div class="page-header">
+   <div id="left">
+      <img src="#APP_FILES#AB Logo.png" width="200px" height="75px">
+   </div>
+   <div id="right">');
+
+FOR z IN (SELECT TO_CHAR(SYSDATE, 'DAY MONTH DD, YYYY') AS t FROM DUAL) 
+LOOP 
+    htp.p('<p style="margin-bottom:-5px; font-size: 14px; font-weight: bold;">' 
+         || htf.escape_sc(z.t) || 
+         '</p>');
+END LOOP;
+
+htp.p('</div></div>'); -- Close both divs properly
+
    htp.p('<table id="t9" >');
    htp.p('<tr> <th colspan="13" class="header">Financial</th> </tr>');
    htp.p('<tr>
@@ -95,10 +168,10 @@ BEGIN
       <th style="width:6%;background-color:#C2DEA4;">Availed</th>
       <th style="width:6%;background-color:#C2DEA4;">Total Availd</th>
       <th style="width:4%;background-color:#C2DEA4;">Balance</th>
-      <th style="width:6%;background-color:#C2DEA4;">Maturity</th>
+      <th style="width:6%;background-color:#C2DEA4;">Overdue</th>
       <th style="width:4%;background-color:#C2DEA4;">Tomorrow</th>
       <th style="width:6%;background-color:#C2DEA4;">Day After Tomorrow</th>
-      <th style="width:4%;background-color:#C2DEA4;">Over Due</th>
+      <th style="width:4%;background-color:#C2DEA4;">Remaining</th>
       
  </tr>');
 DECLARE
@@ -117,8 +190,7 @@ BEGIN
                   WITH BANK_NAME as (
    SELECT 
            AST.REG_NAME, 
-           ASM.SR_IDS 
-     
+           ASM.SR_IDS
      FROM 
            AB_SETUP_REGISTRATION ASM
      JOIN  AB_SETUP_REGISTRATION AST ON AST.SR_ID=ASM.SR_IDS AND AST.REG_TYPE='BANK'
@@ -163,6 +235,7 @@ LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_T
 )
 ,FUND_REQ_DETAIL AS (
   SELECT 
+         DET_ID,
          IDS,
          SUM(BALANCE) REQ_AMT
     FROM
@@ -172,82 +245,62 @@ LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_T
      AND DET_STATUS='CREATED'
      AND STATUS='Y'
 GROUP BY
-       IDS
+       IDS,
+       DET_ID
+)
+,APPROVE_AMOUNT AS(
+   SELECT    FRD.IDS,
+             POR.BANK_ID,
+             SUM(APP_BALANCE) APP_BAL
+     FROM    AB_PO_DEMAND_REQ_DET POR
+     LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.DET_ID=POR.IDS
+WHERE 
+      POR.ORG_ID=:GV_ORG_ID
+      AND    POR.DET_STATUS IS NOT NULL
+      AND    POR.STATUS='Y'
+     AND     POR.DET_STATUS='ALLOCATED'
+      AND    POR.APP_BALANCE > 0
+ GROUP BY
+           FRD.IDS, 
+           POR.BANK_ID
 )
 ,LIMIT_UTILIZATION AS(
   SELECT   
-          AFL.ID,
           AFL.FACILITIES_ID,
           AFL.ACCOUNT_NO,
-          AFL.FACILITIES_TYPE,
-          AFL.STATUS,
-          AFL.SUPPLIER_ID,
-          MAX(CASE    WHEN ASR.SR_ID = AFL.SUPPLIER_ID AND ASR.REG_TYPE = 'VENDOR'   THEN ASR.PARTY_NAME         ELSE NULL       END) AS Supplier_Name,
-          AFL.BG_TYPE,
-          AFL.AMOUNT,
-          AFL.BG_ISSU_DATE,
-          AFL.BG_EXPIRE_DATE,
-          AFL.BG_NUMBER,
-          AFL.AGENCY_ID,
-          MAX(CASE WHEN ASR.SR_ID = AFL.AGENCY_ID AND ASR.REG_TYPE = 'AGENCY'   THEN ASR.REG_NAME  ELSE NULL     END) AS Agency_Name,
-          AFL.ORDER_PURPOSE,
-          MAX(CASE   WHEN ALD.DET_ID = AFL.ORDER_PURPOSE   THEN ALD.LOOKUP_DET_NAME    ELSE NULL    END) AS PURPOSE,
-          AFL.BG_CATEGORY_ID,
-          MAX(CASE     WHEN ALD.DET_ID = AFL.BG_CATEGORY_ID THEN ALD.LOOKUP_DET_NAME     ELSE NULL   END) AS CATEGORY,
-          CASE    WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT) ELSE NULL END AS MATURITY, 
-          CASE     WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 1) THEN TO_CHAR(AFL.AMOUNT)  ELSE NULL   END AS TOMORROW,
+          AFL.AMOUNT - NVL(FRD.APP_BAL,0) AMOUNT,
+          CASE    WHEN TRUNC(AFL.BG_EXPIRE_DATE) <= TRUNC(SYSDATE) THEN TO_NUMBER(AFL.AMOUNT) - NVL(FRD.APP_BAL,0)  ELSE NULL END AS MATURITY, 
+          CASE     WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE + 1) THEN TO_NUMBER(AFL.AMOUNT) - NVL(FRD.APP_BAL,0)  ELSE NULL   END AS TOMORROW,
           CASE 
-          WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
-          WHEN TRUNC(AFL.BG_EXPIRE_DATE) < TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE + 2) THEN TO_NUMBER(AFL.AMOUNT) - NVL(FRD.APP_BAL,0)
+        --  WHEN TRUNC(AFL.BG_EXPIRE_DATE) < TRUNC(SYSDATE - 2) THEN TO_CHAR(AFL.AMOUNT)
           ELSE NULL
           END AS DAY_AFTER_TOMORROW, 
           CASE 
-          WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT)
+          WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE + 2) THEN TO_NUMBER(AFL.AMOUNT) - NVL(FRD.APP_BAL,0)
           ELSE NULL
-          END AS OVER_DUE,         
-          'ATTACMENT' AS ATTACHMENT,
-          AFL.MATURITY_TYPE,
-          CASE WHEN AFL.MATURITY_TYPE='FINANCIAL' AND 
-          TRUNC(AFL.BG_EXPIRE_DATE)=TRUNC(SYSDATE) AND AFL.AMOUNT-NVL(FRD.REQ_AMT,0) > 0 THEN 'FUNDS REQUISITION' ELSE NULL END AS FUNDS_REQUISITION,
-          INITCAP(AFL.CREATED_BY) || ' (' || TO_CHAR(AFL.CREATED_ON, 'DD-MON-YYYY HH:MIPM') || ')' AS CREATED_BY
+          END AS OVER_DUE
      FROM AB_FACILITIES_LETTER AFL  
 LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID) 
 LEFT JOIN AB_LOOKUP_DETAIL ALD ON ALD.DET_ID IN (AFL.BG_CATEGORY_ID, AFL.ORDER_PURPOSE, AFL.BG_NATURE, AFL.FACILITIES_ID) 
-LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
+LEFT JOIN APPROVE_AMOUNT FRD ON FRD.IDS=AFL.ID
     WHERE 
           AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
       AND AFL.MATURITY_TYPE = 'FINANCIAL'
       AND AFL.ORG_ID = NVL(:GV_ORG_ID,AFL.ORG_ID)
- GROUP BY AFL.ID,
-          AFL.FACILITIES_TYPE,
+ GROUP BY 
           AFL.ACCOUNT_NO,
-          AFL.STATUS,
-          AFL.BG_NUMBER,
-          AFL.SUPPLIER_ID,
-          AFL.BG_TYPE,
           AFL.FACILITIES_ID,
           AFL.AMOUNT,
-          AFL.MATURITY_TYPE,
-          AFL.BG_ISSU_DATE,
           AFL.BG_EXPIRE_DATE,
-          AFL.AGENCY_ID,
-          AFL.ORDER_PURPOSE,
-          AFL.BG_CATEGORY_ID,
-          AFL.CREATED_ON,
-          AFL.CREATED_BY,
-          AFL.MATURITY,
-          AFL.TOMORROW,
-          AFL.DAY_AFTER_TOMORROW,
-          AFL.OVER_DUE,
-          NVL(FRD.REQ_AMT,0)
+          NVL(FRD.APP_BAL,0)
 )
 ,TOTAL_AVAILED_AMOUNT AS(
   SELECT   
           AFL.FACILITIES_ID,
-          SUM(AFL.AMOUNT) TOTAL_AVA_AMT
+          SUM(AFL.AMOUNT) - NVL(SUM(FRD.APP_BAL),0) TOTAL_AVA_AMT
      FROM AB_FACILITIES_LETTER AFL  
---LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID)
---LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
+LEFT JOIN APPROVE_AMOUNT FRD ON FRD.IDS=AFL.ID
     WHERE 
           AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
       AND AFL.MATURITY_TYPE = 'FINANCIAL'
@@ -292,14 +345,8 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
     ) 
     LOOP
         htp.p('<tr>');
-
-        -- -- BANK_NAME rowspan logic
-        -- IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
-        --     htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
-        -- END IF;
         
-        
-        IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
+IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
             -- **Ensure Facilities Name is displayed when the bank changes**
              htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
         ELSE
@@ -323,11 +370,6 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             END IF;
         END IF;
 
-        -- -- FACILITIES_NAME rowspan logic
-        -- IF PREV_FACILITIES_NAME IS NULL OR x.FACILITIES_NAME <> PREV_FACILITIES_NAME THEN
-        --     htp.p('<td rowspan="' || NVL(x.FACILITIES_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.FACILITIES_NAME), 'N/A') || '</td>');
-        -- END IF;
-             -- FACILITIES_NAME rowspan logic
            IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
             -- **Ensure Facilities Name is displayed when the bank changes**
                htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
@@ -337,12 +379,6 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
         END IF;
         END IF;
-        -- -- TOTAL_AMOUNT rowspan logic
-        -- IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
-        --     htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
-        -- END IF;
-
-        -- AVAILED
         htp.p('<td>' || NVL(htf.escape_sc(x.AVAILED), '0') || '</td>');
        -- FACILITIES_NAME rowspan logic
            IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
@@ -353,11 +389,7 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
         IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
             htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
         END IF;
-        END IF;
-        -- -- TOTAL_AVAILED rowspan logic
-        -- IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
-        --     htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
-        -- END IF;
+END IF;
 -- FACILITIES_NAME rowspan logic
            IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
             -- **Ensure Facilities Name is displayed when the bank changes**
@@ -368,11 +400,6 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
         END IF;
         END IF;
-
-
-        -- -- BALANCE rowspan logic
-        -- IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
-        --     htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
         -- END IF;
      htp.p('<td>' || NVL(htf.escape_sc(x.MATURITY), '0') || '</td>');
      htp.p('<td>' || NVL(htf.escape_sc(x.TOMORROW), '0') || '</td>');
@@ -423,8 +450,7 @@ BEGIN
                   WITH BANK_NAME as (
    SELECT 
            AST.REG_NAME, 
-           ASM.SR_IDS 
-     
+           ASM.SR_IDS
      FROM 
            AB_SETUP_REGISTRATION ASM
      JOIN  AB_SETUP_REGISTRATION AST ON AST.SR_ID=ASM.SR_IDS AND AST.REG_TYPE='BANK'
@@ -467,6 +493,7 @@ LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_T
 )
 ,FUND_REQ_DETAIL AS (
   SELECT 
+         DET_ID,
          IDS,
          SUM(BALANCE) REQ_AMT
     FROM
@@ -476,28 +503,30 @@ LEFT JOIN AB_SETUP_REGISTRATION ASCM ON ASCM.SR_ID=ASB.COMPANY_ID AND ASCM.REG_T
      AND DET_STATUS='CREATED'
      AND STATUS='Y'
 GROUP BY
-       IDS
+       IDS,
+       DET_ID
+)
+,APPROVE_AMOUNT AS(
+   SELECT    FRD.IDS,
+             POR.BANK_ID,
+             SUM(APP_BALANCE) APP_BAL
+     FROM    AB_PO_DEMAND_REQ_DET POR
+     LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.DET_ID=POR.IDS
+WHERE 
+      POR.ORG_ID=:GV_ORG_ID
+      AND    POR.DET_STATUS IS NOT NULL
+      AND    POR.STATUS='Y'
+     AND     POR.DET_STATUS='ALLOCATED'
+      AND    POR.APP_BALANCE > 0
+ GROUP BY
+           FRD.IDS, 
+           POR.BANK_ID
 )
 ,LIMIT_UTILIZATION AS(
   SELECT   
-          AFL.ID,
           AFL.FACILITIES_ID,
           AFL.ACCOUNT_NO,
-          AFL.FACILITIES_TYPE,
-          AFL.STATUS,
-          AFL.SUPPLIER_ID,
-          MAX(CASE    WHEN ASR.SR_ID = AFL.SUPPLIER_ID AND ASR.REG_TYPE = 'VENDOR'   THEN ASR.PARTY_NAME         ELSE NULL       END) AS Supplier_Name,
-          AFL.BG_TYPE,
-          AFL.AMOUNT,
-          AFL.BG_ISSU_DATE,
-          AFL.BG_EXPIRE_DATE,
-          AFL.BG_NUMBER,
-          AFL.AGENCY_ID,
-          MAX(CASE WHEN ASR.SR_ID = AFL.AGENCY_ID AND ASR.REG_TYPE = 'AGENCY'   THEN ASR.REG_NAME  ELSE NULL     END) AS Agency_Name,
-          AFL.ORDER_PURPOSE,
-          MAX(CASE   WHEN ALD.DET_ID = AFL.ORDER_PURPOSE   THEN ALD.LOOKUP_DET_NAME    ELSE NULL    END) AS PURPOSE,
-          AFL.BG_CATEGORY_ID,
-          MAX(CASE     WHEN ALD.DET_ID = AFL.BG_CATEGORY_ID THEN ALD.LOOKUP_DET_NAME     ELSE NULL   END) AS CATEGORY,
+          AFL.AMOUNT - NVL(FRD.APP_BAL,0) AMOUNT,
           CASE    WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT) ELSE NULL END AS MATURITY, 
           CASE     WHEN TRUNC(AFL.BG_EXPIRE_DATE) = TRUNC(SYSDATE - 1) THEN TO_CHAR(AFL.AMOUNT)  ELSE NULL   END AS TOMORROW,
           CASE 
@@ -508,50 +537,28 @@ GROUP BY
           CASE 
           WHEN TRUNC(AFL.BG_EXPIRE_DATE) > TRUNC(SYSDATE) THEN TO_CHAR(AFL.AMOUNT)
           ELSE NULL
-          END AS OVER_DUE,         
-          'ATTACMENT' AS ATTACHMENT,
-          AFL.MATURITY_TYPE,
-          CASE WHEN AFL.MATURITY_TYPE='FINANCIAL' AND 
-          TRUNC(AFL.BG_EXPIRE_DATE)=TRUNC(SYSDATE) AND AFL.AMOUNT-NVL(FRD.REQ_AMT,0) > 0 THEN 'FUNDS REQUISITION' ELSE NULL END AS FUNDS_REQUISITION,
-          INITCAP(AFL.CREATED_BY) || ' (' || TO_CHAR(AFL.CREATED_ON, 'DD-MON-YYYY HH:MIPM') || ')' AS CREATED_BY
+          END AS OVER_DUE
      FROM AB_FACILITIES_LETTER AFL  
 LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID) 
 LEFT JOIN AB_LOOKUP_DETAIL ALD ON ALD.DET_ID IN (AFL.BG_CATEGORY_ID, AFL.ORDER_PURPOSE, AFL.BG_NATURE, AFL.FACILITIES_ID) 
-LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
+LEFT JOIN APPROVE_AMOUNT FRD ON FRD.IDS=AFL.ID
     WHERE 
           AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
       AND AFL.MATURITY_TYPE = 'NON FINANCIAL'
       AND AFL.ORG_ID = NVL(:GV_ORG_ID,AFL.ORG_ID)
- GROUP BY AFL.ID,
-          AFL.FACILITIES_TYPE,
+ GROUP BY 
           AFL.ACCOUNT_NO,
-          AFL.STATUS,
-          AFL.BG_NUMBER,
-          AFL.SUPPLIER_ID,
-          AFL.BG_TYPE,
           AFL.FACILITIES_ID,
           AFL.AMOUNT,
-          AFL.MATURITY_TYPE,
-          AFL.BG_ISSU_DATE,
           AFL.BG_EXPIRE_DATE,
-          AFL.AGENCY_ID,
-          AFL.ORDER_PURPOSE,
-          AFL.BG_CATEGORY_ID,
-          AFL.CREATED_ON,
-          AFL.CREATED_BY,
-          AFL.MATURITY,
-          AFL.TOMORROW,
-          AFL.DAY_AFTER_TOMORROW,
-          AFL.OVER_DUE,
-          NVL(FRD.REQ_AMT,0)
+          NVL(FRD.APP_BAL,0)
 )
 ,TOTAL_AVAILED_AMOUNT AS(
   SELECT   
           AFL.FACILITIES_ID,
-          SUM(AFL.AMOUNT) TOTAL_AVA_AMT
-     FROM AB_FACILITIES_LETTER AFL  
---LEFT JOIN AB_SETUP_REGISTRATION ASR ON ASR.SR_ID IN (AFL.SUPPLIER_ID, AFL.AGENCY_ID)
---LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
+          SUM(AFL.AMOUNT) - NVL(SUM(FRD.APP_BAL),0) TOTAL_AVA_AMT
+     FROM AB_FACILITIES_LETTER AFL
+LEFT JOIN APPROVE_AMOUNT FRD ON FRD.IDS=AFL.ID
     WHERE 
           AFL.FACILITIES_TYPE = 'LIMIT UTILIZATION'
       AND AFL.MATURITY_TYPE = 'NON FINANCIAL'
@@ -575,13 +582,11 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             SUM( FD.FOL_AMT) AS TOTAL_AMOUNT,
             SUM(LU.AMOUNT) AS AVAILED,
             SUM(FD.FOL_AMT) - SUM(AVL.TOTAL_AVA_AMT) BALANCE
-            
-     
         FROM LIMIT_UTILIZATION LU
         JOIN FOL_DETAIL FD ON FD.FOLD_ID = LU.FACILITIES_ID AND FD.ACCOUNT_ID = LU.ACCOUNT_NO
         JOIN TOTAL_AVAILED_AMOUNT AVL ON AVL.FACILITIES_ID = LU.FACILITIES_ID
         GROUP BY 
-       FD.FOL_ID,
+            FD.FOL_ID,
             FD.BANK_NAME,
             FD.COMPANY_NAME,
             FD.ACCOUNT_NAME,
@@ -591,10 +596,7 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
     ) 
     LOOP
         htp.p('<tr>');
-     -- BANK_NAME rowspan logic
-        -- IF PREV_BANK_NAME IS NULL OR x.BANK_NAME <> PREV_BANK_NAME THEN
-        --     htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
-        -- END IF;
+
         IF PREV_FO_ID IS NULL OR x.FOL_ID <> PREV_FO_ID THEN
             -- **Ensure Facilities Name is displayed when the bank changes**
              htp.p('<td rowspan="' || NVL(x.BANK_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BANK_NAME), 'N/A') || '</td>');
@@ -629,10 +631,6 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
         END IF;
         END IF;
-        -- -- TOTAL_AMOUNT rowspan logic
-        -- IF PREV_TOTAL_AMOUNT IS NULL OR x.TOTAL_AMOUNT <> PREV_TOTAL_AMOUNT THEN
-        --     htp.p('<td rowspan="' || NVL(x.AMOUNT_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AMOUNT), '0') || '</td>');
-        -- END IF;
 
         -- -- AVAILED (No rowspan needed)
         htp.p('<td>' || NVL(htf.escape_sc(x.AVAILED), '0') || '</td>');
@@ -654,16 +652,6 @@ LEFT JOIN FUND_REQ_DETAIL FRD ON FRD.IDS=AFL.ID
             htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
         END IF;
         END IF;
-        -- -- TOTAL_AVAILED rowspan logic
-        -- IF PREV_AVAILD IS NULL OR x.TOTAL_AVAILED <> PREV_AVAILD THEN
-        --     htp.p('<td rowspan="' || NVL(x.AVAILD_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.TOTAL_AVAILED), '0') || '</td>');
-        -- END IF;
-
-        -- -- BALANCE rowspan logic
-        -- IF PREV_BALANCE IS NULL OR x.BALANCE <> PREV_BALANCE THEN
-        --     htp.p('<td rowspan="' || NVL(x.BALANCE_ROWSPAN, 1) || '">' || NVL(htf.escape_sc(x.BALANCE), '0') || '</td>');
-        -- END IF;
-
         htp.p('</tr>');
 
         -- **Update Previous Variables After Printing Row**
